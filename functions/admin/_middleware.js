@@ -1,10 +1,10 @@
 /*
- * Protège /admin/ par authentification HTTP Basic.
+ * ProtÃ¨ge /admin/ par authentification HTTP Basic.
  *
  * Ce code tourne sur les serveurs Cloudflare avant que le moindre fichier du
- * panel ne soit envoyé au navigateur. Les identifiants viennent des variables
+ * panel ne soit envoyÃ© au navigateur. Les identifiants viennent des variables
  * d'environnement du projet Pages (Settings > Environment variables) et ne sont
- * donc jamais présents dans le dépôt Git.
+ * donc jamais prÃ©sents dans le dÃ©pÃ´t Git.
  *
  * Variables attendues : ADMIN_USER et ADMIN_PASSWORD.
  */
@@ -17,13 +17,19 @@ export async function onRequest(context) {
     const expectedUser = env.ADMIN_USER;
     const expectedPassword = env.ADMIN_PASSWORD;
 
-    // Sans identifiants configurés, on refuse tout : mieux vaut un panel
-    // inaccessible qu'un panel ouvert à tous.
+    // Sans identifiants configurÃ©s, on refuse tout : mieux vaut un panel
+    // inaccessible qu'un panel ouvert Ã  tous.
     if (!expectedUser || !expectedPassword) {
+        const missing = [
+            expectedUser ? null : 'ADMIN_USER',
+            expectedPassword ? null : 'ADMIN_PASSWORD'
+        ].filter(Boolean);
+
         return errorPage(
             503,
-            'Panel non configuré',
-            "Les variables d'environnement ADMIN_USER et ADMIN_PASSWORD ne sont pas définies dans le projet Cloudflare Pages."
+            'Panel non configurÃ©',
+            `Variable(s) manquante(s) dans le projet Cloudflare Pages : ${missing.join(' et ')}. ` +
+            `Variables vues par la Function : ${Object.keys(env).join(', ') || 'aucune'}.`
         );
     }
 
@@ -40,7 +46,7 @@ export async function onRequest(context) {
 
     const response = await context.next();
 
-    // Une page d'administration ne doit pas finir dans un cache partagé.
+    // Une page d'administration ne doit pas finir dans un cache partagÃ©.
     const headers = new Headers(response.headers);
     headers.set('Cache-Control', 'no-store, max-age=0');
     headers.set('X-Robots-Tag', 'noindex, nofollow');
@@ -77,7 +83,7 @@ function parseBasicAuth(header) {
 }
 
 // Compare via des empreintes SHA-256 de longueur fixe, pour que le temps de
-// réponse ne révèle pas combien de caractères du mot de passe sont corrects.
+// rÃ©ponse ne rÃ©vÃ¨le pas combien de caractÃ¨res du mot de passe sont corrects.
 async function secureEquals(candidate, expected) {
     const [a, b] = await Promise.all([sha256(candidate), sha256(expected)]);
 
@@ -95,7 +101,7 @@ async function sha256(value) {
 }
 
 function askForPassword() {
-    return errorPage(401, 'Accès réservé', 'Identifiant ou mot de passe incorrect.', {
+    return errorPage(401, 'AccÃ¨s rÃ©servÃ©', 'Identifiant ou mot de passe incorrect.', {
         'WWW-Authenticate': `Basic realm="${REALM}", charset="UTF-8"`
     });
 }

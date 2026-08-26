@@ -16,24 +16,24 @@
         <div class="admin-header">
             <h2 class="admin-title">?? Valdoream Admin Center</h2>
             <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
-                <button class="btn-secondary" style="padding: 8px 15px;" onclick="resetAllData()">Réinitialiser les données</button>
+                <button class="btn-secondary" style="padding: 8px 15px;" onclick="resetAllData()">RÃ©initialiser les donnÃ©es</button>
                 <a class="btn-secondary" style="padding: 8px 15px; border-color: var(--admin-color); color: var(--admin-color); text-decoration: none;" href="../">Retour au site</a>
             </div>
         </div>
 
         <div class="admin-notice">
-            L'accès à cette page est vérifié par <b>Cloudflare Pages Functions</b> avant même que le fichier ne soit envoyé au navigateur.
-            Le mot de passe est stocké dans les variables d'environnement du projet Cloudflare, jamais dans le dépôt Git : pour le changer,
+            L'accÃ¨s Ã  cette page est vÃ©rifiÃ© par <b>Cloudflare Pages Functions</b> avant mÃªme que le fichier ne soit envoyÃ© au navigateur.
+            Le mot de passe est stockÃ© dans les variables d'environnement du projet Cloudflare, jamais dans le dÃ©pÃ´t Git : pour le changer,
             va dans <b>Settings &rsaquo; Environment variables</b> et modifie <code>ADMIN_PASSWORD</code>.
-            Les contenus modifiés ici sont enregistrés <b>dans ce navigateur uniquement</b> : les visiteurs du site ne les verront pas
-            tant qu'une vraie base de données n'est pas branchée.
+            Les contenus modifiÃ©s ici sont enregistrÃ©s <b>dans ce navigateur uniquement</b> : les visiteurs du site ne les verront pas
+            tant qu'une vraie base de donnÃ©es n'est pas branchÃ©e.
         </div>
 
         <div class="admin-grid">
             <aside class="admin-sidebar">
                 <ul class="admin-menu">
                     <li class="active" onclick="switchAdminTab('dash-overview', this)">?? Vue d'ensemble</li>
-                    <li onclick="switchAdminTab('dash-posts', this)">?? Nouveautés & Posts</li>
+                    <li onclick="switchAdminTab('dash-posts', this)">?? NouveautÃ©s & Posts</li>
                     <li onclick="switchAdminTab('dash-players', this)">?? Gestion Joueurs</li>
                     <li onclick="switchAdminTab('dash-shop', this)">?? Ventes & Articles</li>
                     <li onclick="switchAdminTab('dash-server', this)">??? Console Serveur</li>
@@ -43,15 +43,15 @@
             <main class="admin-content">
                 <!-- TAB 1 : OVERVIEW -->
                 <div id="dash-overview" class="admin-tab-content" style="display: block;">
-                    <h3 style="margin-bottom: 20px;">Statistiques Générales</h3>
+                    <h3 style="margin-bottom: 20px;">Statistiques GÃ©nÃ©rales</h3>
                     <div class="dashboard-cards">
                         <div class="dash-card">
-                            <h4>Total Joueurs Enregistrés</h4>
+                            <h4>Total Joueurs EnregistrÃ©s</h4>
                             <div class="value" id="stat-total-players">0</div>
                         </div>
                         <div class="dash-card">
                             <h4>Revenus Boutique</h4>
-                            <div class="value" id="stat-total-revenue">0,00 €</div>
+                            <div class="value" id="stat-total-revenue">0,00 â‚¬</div>
                         </div>
                         <div class="dash-card">
                             <h4>Articles en Vente</h4>
@@ -74,10 +74,10 @@
                     </table>
                 </div>
 
-                <!-- TAB 2 : POSTS & NOUVEAUTÉS -->
+                <!-- TAB 2 : POSTS & NOUVEAUTÃ‰S -->
                 <div id="dash-posts" class="admin-tab-content" style="display: none;">
-                    <h3 style="margin-bottom: 20px;">Gestion des Annonces & Nouveautés</h3>
-                    <button class="btn-primary" style="margin-bottom: 20px; background: var(--admin-color);" onclick="openModal('add-post-modal')">+ Publier un Post / Nouveauté</button>
+                    <h3 style="margin-bottom: 20px;">Gestion des Annonces & NouveautÃ©s</h3>
+                    <button class="btn-primary" style="margin-bottom: 20px; background: var(--admin-color);" onclick="openModal('add-post-modal')">+ Publier un Post / NouveautÃ©</button>
                     <table class="admin-table">
                         <thead>
                             <tr><th>Type</th><th>Titre</th><th>Auteur / Date</th><th>Actions</th></tr>
@@ -88,7 +88,7 @@
 
                 <!-- TAB 3 : JOUEURS -->
                 <div id="dash-players" class="admin-tab-content" style="display: none;">
-                    <h3 style="margin-bottom: 20px;">Gestion de la Communauté</h3>
+                    <h3 style="margin-bottom: 20px;">Gestion de la CommunautÃ©</h3>
                     <div style="display: flex; gap: 10px; margin-bottom: 20px;">
                         <input type="text" id="player-search-input" onkeyup="renderPlayersTable()" placeholder="Rechercher un pseudo..." style="flex-grow:1; padding: 10px; background: var(--bg-dark-2); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 6px;">
                         <button class="btn-primary" style="background: var(--admin-color);" onclick="addPlayer()">+ Ajouter Joueur</button>
@@ -107,7 +107,7 @@
                     <button class="btn-primary" style="margin-bottom: 20px; background: var(--admin-color);" onclick="openModal('add-product-modal')">+ Ajouter un article</button>
                     <table class="admin-table">
                         <thead>
-                            <tr><th>Catégorie</th><th>Nom de l'article</th><th>Prix</th><th>Actions</th></tr>
+                            <tr><th>CatÃ©gorie</th><th>Nom de l'article</th><th>Prix</th><th>Actions</th></tr>
                         </thead>
                         <tbody id="admin-products-table"></tbody>
                     </table>
@@ -120,7 +120,7 @@
                     <form onsubmit="executeConsoleCommand(event)" style="display: flex; gap: 10px; margin-top: 15px;">
                         <span style="color: var(--admin-color); font-weight: bold; font-family: monospace; align-self: center;">></span>
                         <input type="text" id="console-input" placeholder="Entrez une commande (ex: /say Bonjour, /ban Pseudo)..." style="flex-grow:1; padding: 10px; background: black; border: 1px solid #333; color: white; border-radius: 4px; font-family: monospace;">
-                        <button type="submit" class="btn-secondary">Exécuter</button>
+                        <button type="submit" class="btn-secondary">ExÃ©cuter</button>
                     </form>
                     <p style="color: var(--text-gray); font-size: 0.8rem; margin-top: 10px;">
                         Cette console est une simulation : elle n'envoie aucune commande au serveur Minecraft.
@@ -139,8 +139,8 @@
                 <div class="form-group">
                     <label>Type de publication</label>
                     <select id="post-type">
-                        <option value="news">Nouveauté (avec image)</option>
-                        <option value="post">Post / Actualité rapide</option>
+                        <option value="news">NouveautÃ© (avec image)</option>
+                        <option value="post">Post / ActualitÃ© rapide</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -152,12 +152,12 @@
                     <input type="text" id="post-author" required placeholder="Ex: Alexandre (Lead Dev)">
                 </div>
                 <div class="form-group">
-                    <label>URL Image (pour les Nouveautés)</label>
+                    <label>URL Image (pour les NouveautÃ©s)</label>
                     <input type="text" id="post-img" placeholder="https://images.unsplash.com/...">
                 </div>
                 <div class="form-group">
                     <label>Contenu / Description</label>
-                    <textarea id="post-desc" rows="4" required placeholder="Détails du post..."></textarea>
+                    <textarea id="post-desc" rows="4" required placeholder="DÃ©tails du post..."></textarea>
                 </div>
                 <button type="submit" class="btn-primary" style="background: var(--admin-color); width: 100%;">Publier</button>
             </form>
@@ -171,10 +171,10 @@
             <h3 style="margin-bottom: 20px;">Nouveau Produit</h3>
             <form onsubmit="saveNewProduct(event)">
                 <div class="form-group">
-                    <label>Catégorie</label>
+                    <label>CatÃ©gorie</label>
                     <select id="prod-cat">
                         <option value="grades">Grade</option>
-                        <option value="items">Clé / Objet</option>
+                        <option value="items">ClÃ© / Objet</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -182,7 +182,7 @@
                     <input type="text" id="prod-name" required placeholder="Ex: Pack 1000 Gemmes">
                 </div>
                 <div class="form-group">
-                    <label>Prix (€)</label>
+                    <label>Prix (â‚¬)</label>
                     <input type="number" step="0.01" min="0" id="prod-price" required placeholder="9.99">
                 </div>
                 <div class="form-group">
@@ -224,16 +224,16 @@
                     <td>${esc(sale.item)}</td>
                     <td>${formatPrice(sale.price)}</td>
                     <td>${esc(sale.date)}</td>
-                    <td><span style="color: #2bcf5e;">Validé</span></td>
+                    <td><span style="color: #2bcf5e;">ValidÃ©</span></td>
                 </tr>
             `).join('');
         }
 
-        // --- POSTS & NOUVEAUTÉS ---
+        // --- POSTS & NOUVEAUTÃ‰S ---
         function renderPostsTable() {
             const newsRows = store.news.map(n => `
                 <tr>
-                    <td><span class="badge-popular">NOUVEAUTÉ</span></td>
+                    <td><span class="badge-popular">NOUVEAUTÃ‰</span></td>
                     <td><b>${esc(n.title)}</b></td>
                     <td>${esc(n.date)}</td>
                     <td><button class="action-btn delete" onclick="deleteNews(${n.id})">Supprimer</button></td>
@@ -263,14 +263,14 @@
             if (type === 'news') {
                 store.news.unshift({ id: Date.now(), title, date: "AUJOURD'HUI", img, desc });
             } else {
-                store.posts.unshift({ id: Date.now(), author, role: 'Staff', time: "À l'instant", content: desc, tag: title || 'Annonce' });
+                store.posts.unshift({ id: Date.now(), author, role: 'Staff', time: "Ã€ l'instant", content: desc, tag: title || 'Annonce' });
             }
 
             persist();
             e.target.reset();
             closeModal('add-post-modal');
             renderPostsTable();
-            addConsoleLog(`[COMMUNITY]: Nouvelle publication ajoutée par ${author}.`);
+            addConsoleLog(`[COMMUNITY]: Nouvelle publication ajoutÃ©e par ${author}.`);
         }
 
         function deleteNews(id) { store.news = store.news.filter(x => x.id !== id); persist(); renderPostsTable(); }
@@ -290,7 +290,7 @@
                             <td>${esc(p.grade)}</td>
                             <td><span style="color: ${statusColor}; font-weight: bold;">${esc(p.status)}</span></td>
                             <td>
-                                <button class="action-btn edit" onclick="toggleBanPlayer(${p.id})">${p.status === 'Banni' ? 'Débannir' : 'Bannir'}</button>
+                                <button class="action-btn edit" onclick="toggleBanPlayer(${p.id})">${p.status === 'Banni' ? 'DÃ©bannir' : 'Bannir'}</button>
                                 <button class="action-btn delete" onclick="deletePlayer(${p.id})">Supprimer</button>
                             </td>
                         </tr>
@@ -303,7 +303,7 @@
             if (!p) return;
             p.status = p.status === 'Banni' ? 'Hors ligne' : 'Banni';
             persist();
-            addConsoleLog(`[MODERATION]: Le statut de ${p.pseudo} a été modifié vers ${p.status}.`);
+            addConsoleLog(`[MODERATION]: Le statut de ${p.pseudo} a Ã©tÃ© modifiÃ© vers ${p.status}.`);
             renderPlayersTable();
         }
 
@@ -348,7 +348,7 @@
             closeModal('add-product-modal');
             renderProductsTable();
             updateAdminStats();
-            addConsoleLog(`[BOUTIQUE]: Nouvel article publié : ${name} (${price}€)`);
+            addConsoleLog(`[BOUTIQUE]: Nouvel article publiÃ© : ${name} (${price}â‚¬)`);
         }
 
         function deleteProduct(id) {
@@ -391,14 +391,14 @@
                     addConsoleLog(`[ERREUR]: Joueur ${pseudo} introuvable.`);
                 }
             } else {
-                addConsoleLog(`[CONSOLE]: Commande "${cmd}" exécutée avec succès.`);
+                addConsoleLog(`[CONSOLE]: Commande "${cmd}" exÃ©cutÃ©e avec succÃ¨s.`);
             }
 
             input.value = '';
         }
 
         function resetAllData() {
-            if (!confirm('Remettre tout le contenu du site à ses valeurs par défaut ?')) return;
+            if (!confirm('Remettre tout le contenu du site Ã  ses valeurs par dÃ©faut ?')) return;
             resetStore();
             location.reload();
         }
