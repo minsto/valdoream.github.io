@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Valdoream | Admin Center</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Montserrat:wght@700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+    <div id="admin-panel">
+        <div class="admin-header">
+            <h2 class="admin-title">👑 Valdoream Admin Center</h2>
+            <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                <button class="btn-secondary" style="padding: 8px 15px;" onclick="resetAllData()">Réinitialiser les données</button>
+                <a class="btn-secondary" style="padding: 8px 15px; border-color: var(--admin-color); color: var(--admin-color); text-decoration: none;" href="../">Retour au site</a>
+            </div>
+        </div>
+
+        <div class="admin-notice">
+            L'accès à cette page est filtré par <b>Cloudflare Access</b> avant même que le fichier ne soit envoyé au navigateur.
+            Les contenus modifiés ici sont enregistrés <b>dans ce navigateur uniquement</b> : les visiteurs du site ne les verront pas
+            tant qu'une vraie base de données n'est pas branchée.
+        </div>
+
+        <div class="admin-grid">
+            <aside class="admin-sidebar">
+                <ul class="admin-menu">
+                    <li class="active" onclick="switchAdminTab('dash-overview', this)">📊 Vue d'ensemble</li>
+                    <li onclick="switchAdminTab('dash-posts', this)">📢 Nouveautés & Posts</li>
+                    <li onclick="switchAdminTab('dash-players', this)">👥 Gestion Joueurs</li>
+                    <li onclick="switchAdminTab('dash-shop', this)">🛒 Ventes & Articles</li>
+                    <li onclick="switchAdminTab('dash-server', this)">🖥️ Console Serveur</li>
+                </ul>
+            </aside>
+
+            <main class="admin-content">
+                <!-- TAB 1 : OVERVIEW -->
+                <div id="dash-overview" class="admin-tab-content" style="display: block;">
+                    <h3 style="margin-bottom: 20px;">Statistiques Générales</h3>
+                    <div class="dashboard-cards">
+                        <div class="dash-card">
+                            <h4>Total Joueurs Enregistrés</h4>
+                            <div class="value" id="stat-total-players">0</div>
+                        </div>
+                        <div class="dash-card">
+                            <h4>Revenus Boutique</h4>
+                            <div class="value" id="stat-total-revenue">0,00 €</div>
+                        </div>
+                        <div class="dash-card">
+                            <h4>Articles en Vente</h4>
+                            <div class="value" id="stat-total-items">0</div>
+                        </div>
+                    </div>
+
+                    <h3 style="margin-bottom: 15px;">Historique des Transactions</h3>
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Joueur</th>
+                                <th>Article</th>
+                                <th>Montant</th>
+                                <th>Date</th>
+                                <th>Statut</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-sales-table"></tbody>
+                    </table>
+                </div>
+
+                <!-- TAB 2 : POSTS & NOUVEAUTÉS -->
+                <div id="dash-posts" class="admin-tab-content" style="display: none;">
+                    <h3 style="margin-bottom: 20px;">Gestion des Annonces & Nouveautés</h3>
+                    <button class="btn-primary" style="margin-bottom: 20px; background: var(--admin-color);" onclick="openModal('add-post-modal')">+ Publier un Post / Nouveauté</button>
+                    <table class="admin-table">
+                        <thead>
+                            <tr><th>Type</th><th>Titre</th><th>Auteur / Date</th><th>Actions</th></tr>
+                        </thead>
+                        <tbody id="admin-posts-table"></tbody>
+                    </table>
+                </div>
+
+                <!-- TAB 3 : JOUEURS -->
+                <div id="dash-players" class="admin-tab-content" style="display: none;">
+                    <h3 style="margin-bottom: 20px;">Gestion de la Communauté</h3>
+                    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                        <input type="text" id="player-search-input" onkeyup="renderPlayersTable()" placeholder="Rechercher un pseudo..." style="flex-grow:1; padding: 10px; background: var(--bg-dark-2); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 6px;">
+                        <button class="btn-primary" style="background: var(--admin-color);" onclick="addPlayer()">+ Ajouter Joueur</button>
+                    </div>
+                    <table class="admin-table">
+                        <thead>
+                            <tr><th>Pseudo</th><th>Grade</th><th>Statut</th><th>Actions</th></tr>
+                        </thead>
+                        <tbody id="admin-players-table"></tbody>
+                    </table>
+                </div>
+
+                <!-- TAB 4 : ARTICLES -->
+                <div id="dash-shop" class="admin-tab-content" style="display: none;">
+                    <h3 style="margin-bottom: 20px;">Gestion du Catalogue Boutique</h3>
+                    <button class="btn-primary" style="margin-bottom: 20px; background: var(--admin-color);" onclick="openModal('add-product-modal')">+ Ajouter un article</button>
+                    <table class="admin-table">
+                        <thead>
+                            <tr><th>Catégorie</th><th>Nom de l'article</th><th>Prix</th><th>Actions</th></tr>
+                        </thead>
+                        <tbody id="admin-products-table"></tbody>
+                    </table>
+                </div>
+
+                <!-- TAB 5 : CONSOLE -->
+                <div id="dash-server" class="admin-tab-content" style="display: none;">
+                    <h3 style="margin-bottom: 20px;">Console de Commandes En Direct</h3>
+                    <div id="console-output" style="background: black; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 0.9rem; color: #aaa; height: 320px; overflow-y: scroll; border: 1px solid #333; line-height: 1.5;"></div>
+                    <form onsubmit="executeConsoleCommand(event)" style="display: flex; gap: 10px; margin-top: 15px;">
+                        <span style="color: var(--admin-color); font-weight: bold; font-family: monospace; align-self: center;">></span>
+                        <input type="text" id="console-input" placeholder="Entrez une commande (ex: /say Bonjour, /ban Pseudo)..." style="flex-grow:1; padding: 10px; background: black; border: 1px solid #333; color: white; border-radius: 4px; font-family: monospace;">
+                        <button type="submit" class="btn-secondary">Exécuter</button>
+                    </form>
+                    <p style="color: var(--text-gray); font-size: 0.8rem; margin-top: 10px;">
+                        Cette console est une simulation : elle n'envoie aucune commande au serveur Minecraft.
+                    </p>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- MODAL AJOUT POST -->
+    <div class="modal-overlay" id="add-post-modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal('add-post-modal')">&times;</button>
+            <h3 style="margin-bottom: 20px;">Ajouter une publication</h3>
+            <form onsubmit="saveNewPost(event)">
+                <div class="form-group">
+                    <label>Type de publication</label>
+                    <select id="post-type">
+                        <option value="news">Nouveauté (avec image)</option>
+                        <option value="post">Post / Actualité rapide</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Titre</label>
+                    <input type="text" id="post-title" required placeholder="Titre de la publication">
+                </div>
+                <div class="form-group">
+                    <label>Auteur / Tag</label>
+                    <input type="text" id="post-author" required placeholder="Ex: Alexandre (Lead Dev)">
+                </div>
+                <div class="form-group">
+                    <label>URL Image (pour les Nouveautés)</label>
+                    <input type="text" id="post-img" placeholder="https://images.unsplash.com/...">
+                </div>
+                <div class="form-group">
+                    <label>Contenu / Description</label>
+                    <textarea id="post-desc" rows="4" required placeholder="Détails du post..."></textarea>
+                </div>
+                <button type="submit" class="btn-primary" style="background: var(--admin-color); width: 100%;">Publier</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL AJOUT ARTICLE -->
+    <div class="modal-overlay" id="add-product-modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal('add-product-modal')">&times;</button>
+            <h3 style="margin-bottom: 20px;">Nouveau Produit</h3>
+            <form onsubmit="saveNewProduct(event)">
+                <div class="form-group">
+                    <label>Catégorie</label>
+                    <select id="prod-cat">
+                        <option value="grades">Grade</option>
+                        <option value="items">Clé / Objet</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Nom de l'article</label>
+                    <input type="text" id="prod-name" required placeholder="Ex: Pack 1000 Gemmes">
+                </div>
+                <div class="form-group">
+                    <label>Prix (€)</label>
+                    <input type="number" step="0.01" min="0" id="prod-price" required placeholder="9.99">
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <input type="text" id="prod-desc" required placeholder="Courte description de l'objet">
+                </div>
+                <button type="submit" class="btn-primary" style="background: var(--admin-color); width: 100%;">Publier dans la boutique</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="../assets/data.js"></script>
+    <script>
+        const store = loadStore();
+
+        function persist() { saveStore(store); }
+
+        function openModal(id) { document.getElementById(id).classList.add('active'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+        function switchAdminTab(tabId, element) {
+            document.querySelectorAll('.admin-menu li').forEach(el => el.classList.remove('active'));
+            element.classList.add('active');
+
+            document.querySelectorAll('.admin-tab-content').forEach(el => el.style.display = 'none');
+            document.getElementById(tabId).style.display = 'block';
+        }
+
+        // --- VUE D'ENSEMBLE ---
+        function updateAdminStats() {
+            document.getElementById('stat-total-players').innerText = store.players.length;
+            const totalRev = store.sales.reduce((acc, curr) => acc + Number(curr.price), 0);
+            document.getElementById('stat-total-revenue').innerText = formatPrice(totalRev);
+            document.getElementById('stat-total-items').innerText = store.shop.length;
+
+            document.getElementById('admin-sales-table').innerHTML = store.sales.map(sale => `
+                <tr>
+                    <td>${esc(sale.player)}</td>
+                    <td>${esc(sale.item)}</td>
+                    <td>${formatPrice(sale.price)}</td>
+                    <td>${esc(sale.date)}</td>
+                    <td><span style="color: #2bcf5e;">Validé</span></td>
+                </tr>
+            `).join('');
+        }
+
+        // --- POSTS & NOUVEAUTÉS ---
+        function renderPostsTable() {
+            const newsRows = store.news.map(n => `
+                <tr>
+                    <td><span class="badge-popular">NOUVEAUTÉ</span></td>
+                    <td><b>${esc(n.title)}</b></td>
+                    <td>${esc(n.date)}</td>
+                    <td><button class="action-btn delete" onclick="deleteNews(${n.id})">Supprimer</button></td>
+                </tr>
+            `).join('');
+
+            const postRows = store.posts.map(p => `
+                <tr>
+                    <td><span class="badge-popular" style="background: var(--admin-color);">POST</span></td>
+                    <td><b>${esc(p.content.substring(0, 30))}...</b></td>
+                    <td>${esc(p.author)} (${esc(p.time)})</td>
+                    <td><button class="action-btn delete" onclick="deletePost(${p.id})">Supprimer</button></td>
+                </tr>
+            `).join('');
+
+            document.getElementById('admin-posts-table').innerHTML = newsRows + postRows;
+        }
+
+        function saveNewPost(e) {
+            e.preventDefault();
+            const type = document.getElementById('post-type').value;
+            const title = document.getElementById('post-title').value;
+            const author = document.getElementById('post-author').value;
+            const img = document.getElementById('post-img').value;
+            const desc = document.getElementById('post-desc').value;
+
+            if (type === 'news') {
+                store.news.unshift({ id: Date.now(), title, date: "AUJOURD'HUI", img, desc });
+            } else {
+                store.posts.unshift({ id: Date.now(), author, role: 'Staff', time: "À l'instant", content: desc, tag: title || 'Annonce' });
+            }
+
+            persist();
+            e.target.reset();
+            closeModal('add-post-modal');
+            renderPostsTable();
+            addConsoleLog(`[COMMUNITY]: Nouvelle publication ajoutée par ${author}.`);
+        }
+
+        function deleteNews(id) { store.news = store.news.filter(x => x.id !== id); persist(); renderPostsTable(); }
+        function deletePost(id) { store.posts = store.posts.filter(x => x.id !== id); persist(); renderPostsTable(); }
+
+        // --- JOUEURS ---
+        function renderPlayersTable() {
+            const search = document.getElementById('player-search-input').value.toLowerCase();
+
+            document.getElementById('admin-players-table').innerHTML = store.players
+                .filter(p => p.pseudo.toLowerCase().includes(search))
+                .map(p => {
+                    const statusColor = p.status === 'En ligne' ? '#2bcf5e' : p.status === 'Banni' ? '#e74c3c' : 'gray';
+                    return `
+                        <tr>
+                            <td><b>${esc(p.pseudo)}</b></td>
+                            <td>${esc(p.grade)}</td>
+                            <td><span style="color: ${statusColor}; font-weight: bold;">${esc(p.status)}</span></td>
+                            <td>
+                                <button class="action-btn edit" onclick="toggleBanPlayer(${p.id})">${p.status === 'Banni' ? 'Débannir' : 'Bannir'}</button>
+                                <button class="action-btn delete" onclick="deletePlayer(${p.id})">Supprimer</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+        }
+
+        function toggleBanPlayer(id) {
+            const p = store.players.find(x => x.id === id);
+            if (!p) return;
+            p.status = p.status === 'Banni' ? 'Hors ligne' : 'Banni';
+            persist();
+            addConsoleLog(`[MODERATION]: Le statut de ${p.pseudo} a été modifié vers ${p.status}.`);
+            renderPlayersTable();
+        }
+
+        function deletePlayer(id) {
+            store.players = store.players.filter(x => x.id !== id);
+            persist();
+            renderPlayersTable();
+            updateAdminStats();
+        }
+
+        function addPlayer() {
+            const pseudo = prompt('Entrez le pseudo du nouveau joueur :');
+            if (!pseudo) return;
+            store.players.push({ id: Date.now(), pseudo, grade: 'Joueur', status: 'Hors ligne' });
+            persist();
+            renderPlayersTable();
+            updateAdminStats();
+        }
+
+        // --- BOUTIQUE ---
+        function renderProductsTable() {
+            document.getElementById('admin-products-table').innerHTML = store.shop.map(prod => `
+                <tr>
+                    <td><span class="badge-popular" style="background: var(--bg-dark-2);">${esc(prod.category.toUpperCase())}</span></td>
+                    <td><b>${esc(prod.name)}</b></td>
+                    <td>${formatPrice(prod.price)}</td>
+                    <td><button class="action-btn delete" onclick="deleteProduct(${prod.id})">Supprimer</button></td>
+                </tr>
+            `).join('');
+        }
+
+        function saveNewProduct(e) {
+            e.preventDefault();
+            const category = document.getElementById('prod-cat').value;
+            const name = document.getElementById('prod-name').value;
+            const price = parseFloat(document.getElementById('prod-price').value);
+            const desc = document.getElementById('prod-desc').value;
+
+            store.shop.push({ id: Date.now(), category, name, price, desc });
+            persist();
+            e.target.reset();
+            closeModal('add-product-modal');
+            renderProductsTable();
+            updateAdminStats();
+            addConsoleLog(`[BOUTIQUE]: Nouvel article publié : ${name} (${price}€)`);
+        }
+
+        function deleteProduct(id) {
+            store.shop = store.shop.filter(x => x.id !== id);
+            persist();
+            renderProductsTable();
+            updateAdminStats();
+        }
+
+        // --- CONSOLE ---
+        function renderConsole() {
+            const box = document.getElementById('console-output');
+            box.innerHTML = store.logs.map(l => `<div>${esc(l)}</div>`).join('');
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function addConsoleLog(msg) {
+            store.logs.push(`[${new Date().toLocaleTimeString()}] ${msg}`);
+            persist();
+            renderConsole();
+        }
+
+        function executeConsoleCommand(e) {
+            e.preventDefault();
+            const input = document.getElementById('console-input');
+            const cmd = input.value.trim();
+            if (!cmd) return;
+
+            addConsoleLog(`> ${cmd}`);
+
+            if (cmd.startsWith('/ban ')) {
+                const pseudo = cmd.split(' ')[1];
+                const p = store.players.find(x => x.pseudo.toLowerCase() === (pseudo || '').toLowerCase());
+                if (p) {
+                    p.status = 'Banni';
+                    persist();
+                    renderPlayersTable();
+                    addConsoleLog(`[CONSOLE]: Joueur ${pseudo} banni.`);
+                } else {
+                    addConsoleLog(`[ERREUR]: Joueur ${pseudo} introuvable.`);
+                }
+            } else {
+                addConsoleLog(`[CONSOLE]: Commande "${cmd}" exécutée avec succès.`);
+            }
+
+            input.value = '';
+        }
+
+        function resetAllData() {
+            if (!confirm('Remettre tout le contenu du site à ses valeurs par défaut ?')) return;
+            resetStore();
+            location.reload();
+        }
+
+        // --- INITIALISATION ---
+        window.addEventListener('DOMContentLoaded', () => {
+            updateAdminStats();
+            renderPostsTable();
+            renderPlayersTable();
+            renderProductsTable();
+            renderConsole();
+        });
+    </script>
+</body>
+</html>
