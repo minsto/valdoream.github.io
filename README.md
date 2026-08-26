@@ -11,6 +11,9 @@ Site vitrine du serveur Minecraft et du studio Valdoream : présentation, actual
 | `assets/style.css` | Les styles partagés par les deux pages |
 | `assets/data.js` | Le contenu du site (actualités, boutique, joueurs) et sa sauvegarde |
 | `functions/admin/_middleware.js` | La vérification du mot de passe qui protège `/admin/` |
+| `functions/api/content.js` | La lecture publique du contenu, pour tous les visiteurs |
+| `functions/admin/api/content.js` | L'écriture du contenu, réservée au panel |
+| `tools/fix-encoding.py` | Un dépannage d'encodage, utile seulement en développement |
 
 ## Tester en local
 
@@ -30,7 +33,7 @@ La vérification est faite par `functions/admin/_middleware.js`, une Pages Funct
 
 ### Configurer les identifiants
 
-Les identifiants viennent de deux variables d'environnement du projet Cloudflare Pages, jamais du dépôt Git. Dans le tableau de bord Cloudflare, aller dans le projet puis **Settings → Environment variables**, et ajouter pour l'environnement **Production** :
+Les identifiants viennent de deux variables d'environnement du projet Cloudflare Pages, jamais du dépôt Git. Dans le tableau de bord Cloudflare, aller dans le projet puis **Settings &#8594; Environment variables**, et ajouter pour l'environnement **Production** :
 
 | Variable | Contenu |
 | --- | --- |
@@ -39,19 +42,66 @@ Les identifiants viennent de deux variables d'environnement du projet Cloudflare
 
 Sans ces deux variables, le panel renvoie une erreur 503 : le comportement par défaut est de tout refuser, jamais de tout ouvrir.
 
-Pour **changer le mot de passe**, il suffit de modifier `ADMIN_PASSWORD` puis de relancer un déploiement (**Deployments → Retry deployment**). Le changement ne peut pas se faire depuis le panel lui-même : ça demanderait une base de données pour stocker le nouveau mot de passe.
+Pour **changer le mot de passe**, il suffit de modifier `ADMIN_PASSWORD` puis de relancer un déploiement (**Deployments &#8594; Retry deployment**). Le changement ne peut pas se faire depuis le panel lui-même : ça demanderait une base de données pour stocker le nouveau mot de passe.
 
 ### Deux réglages à ne pas oublier
 
-1. Dans **Settings → Functions**, mettre **Request limit failure mode** sur **Fail closed (block)**. Par défaut, si le quota gratuit de requêtes est dépassé, Cloudflare laisse passer les requêtes sans exécuter la Function — donc sans vérifier le mot de passe.
+1. Dans **Settings &#8594; Functions**, mettre **Request limit failure mode** sur **Fail closed (block)**. Par défaut, si le quota gratuit de requêtes est dépassé, Cloudflare laisse passer les requêtes sans exécuter la Function — donc sans vérifier le mot de passe.
 2. **Désactiver GitHub Pages** dans les réglages du dépôt. Tant qu'il reste actif, le site est aussi servi sur `minsto.github.io`, où aucune Function ne tourne et où `/admin/` est donc accessible à tous.
 
 ### Choisir un bon mot de passe
 
 Cette protection résiste à la lecture du code source, mais pas à quelqu'un qui essaierait des milliers de mots de passe courants. Un mot du dictionnaire tombe en quelques minutes. Une phrase de passe longue, du type `bananes-donjon-valdoream-2026`, est facile à retenir et hors de portée d'une attaque par dictionnaire.
 
-## Limite actuelle des données
+## Où sont enregistrées les données
 
-Les modifications faites dans le panel sont enregistrées dans le `localStorage` du navigateur. Elles survivent à un rafraîchissement, mais restent **locales à l'ordinateur qui les a faites** : les visiteurs du site ne les voient pas.
+Le contenu modifié dans le panel part dans **Workers KV**, la base de données de Cloudflare, et devient visible par tous les visiteurs du site. Le `localStorage` du navigateur ne sert plus que de cache : il permet d'afficher la page sans attendre le réseau, et de continuer à travailler si le serveur est injoignable.
 
-Pour que le panel pilote réellement le contenu public, il faut une base de données. Une offre gratuite comme [Supabase](https://supabase.com) permettrait de remplacer `assets/data.js` par de vrais appels réseau, sans changer le reste du code.
+| Adresse | Méthode | Qui peut l'utiliser |
+| --- | --- | --- |
+| `/api/content` | `GET` | tout le monde, en lecture seule |
+| `/admin/api/content` | `GET`, `PUT`, `DELETE` | seulement avec le mot de passe du panel |
+
+L'adresse d'écriture est volontairement placée sous `/admin/` : le middleware qui garde le panel s'exécute avant elle, et le navigateur y renvoie tout seul les identifiants déjà saisis.
+
+### Brancher la base de données
+
+Sans cette étape, le site fonctionne quand même, mais en mode dégradé : les modifications ne sont gardées que dans le navigateur qui les a faites, et l'étiquette en haut du panel passe au rouge pour le signaler.
+
+**1. Créer la base.** Dans le tableau de bord Cloudflare, aller dans **Storage & Databases &#8594; KV**, cliquer **Create a namespace**, la nommer `valdoream-content` puis valider.
+
+**2. La brancher au site.** Ouvrir le projet Pages `valdoream`, puis **Settings &#8594; Bindings &#8594; Add &#8594; KV namespace**, et renseigner :
+
+| Champ | Valeur |
+| --- | --- |
+| Variable name | `CONTENT` |
+| KV namespace | `valdoream-content` |
+
+Le nom de variable doit être exactement `CONTENT` : c'est sous ce nom que le code lit la base.
+
+**3. Redéployer.** Un binding ajouté n'est pris en compte qu'au déploiement suivant : **Deployments &#8594; Retry deployment**, ou n'importe quel nouveau commit.
+
+Le quota gratuit de Workers KV (100 000 lectures et 1 000 écritures par jour) est très large pour un site de cette taille.
+
+### Vérifier que ça marche
+
+Ouvrir le panel : l'étiquette en haut à droite doit afficher **Contenu en ligne chargé** en vert. Ajouter un article, puis vérifier que l'étiquette passe à **Enregistré en ligne**. Le test décisif consiste à ouvrir la boutique depuis un autre appareil ou une fenêtre de navigation privée : l'article doit y apparaître.
+
+## Tester les Functions en local
+
+Le serveur Python ci-dessus ne sert que les fichiers : il n'exécute ni le mot de passe ni la base de données. Pour tester l'ensemble, il faut l'outil de Cloudflare :
+
+```bash
+npx wrangler pages dev . --kv CONTENT --binding ADMIN_USER=admin --binding ADMIN_PASSWORD=un-mot-de-passe
+```
+
+Le site est alors sur http://127.0.0.1:8788/ avec une base KV locale, stockée dans `.wrangler/` et ignorée par Git.
+
+## Encodage des fichiers
+
+Certains éditeurs sous Windows réenregistrent les fichiers dans l'encodage local (cp1252) au lieu d'UTF-8, ce qui abîme les accents et remplace les emojis par des `?`. Deux protections sont en place :
+
+- les fichiers HTML, CSS et JavaScript commencent par une signature UTF-8 (BOM), que les éditeurs détectent pour conserver le bon encodage ;
+- les emojis sont écrits en entités HTML (`&#128081;` pour la couronne), une forme purement ASCII qu'aucun réenregistrement ne peut abîmer.
+
+En cas de doute après une modification, `python tools/fix-encoding.py` vérifie les fichiers et répare ce qui peut l'être.

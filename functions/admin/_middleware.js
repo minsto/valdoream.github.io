@@ -28,8 +28,7 @@ export async function onRequest(context) {
         return errorPage(
             503,
             'Panel non configuré',
-            `Variable(s) manquante(s) dans le projet Cloudflare Pages : ${missing.join(' et ')}. ` +
-            `Variables vues par la Function : ${Object.keys(env).join(', ') || 'aucune'}.`
+            `Variable(s) manquante(s) dans le projet Cloudflare Pages : ${missing.join(' et ')}.`
         );
     }
 

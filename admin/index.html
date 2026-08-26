@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
@@ -14,8 +14,9 @@
 
     <div id="admin-panel">
         <div class="admin-header">
-            <h2 class="admin-title">👑 Valdoream Admin Center</h2>
+            <h2 class="admin-title">&#128081; Valdoream Admin Center</h2>
             <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                <span id="admin-sync-status" class="admin-sync" data-tone="busy">Chargement du contenu...</span>
                 <button class="btn-secondary" style="padding: 8px 15px;" onclick="resetAllData()">Réinitialiser les données</button>
                 <a class="btn-secondary" style="padding: 8px 15px; border-color: var(--admin-color); color: var(--admin-color); text-decoration: none;" href="../">Retour au site</a>
             </div>
@@ -25,18 +26,19 @@
             L'accès à cette page est vérifié par <b>Cloudflare Pages Functions</b> avant même que le fichier ne soit envoyé au navigateur.
             Le mot de passe est stocké dans les variables d'environnement du projet Cloudflare, jamais dans le dépôt Git : pour le changer,
             va dans <b>Settings &rsaquo; Environment variables</b> et modifie <code>ADMIN_PASSWORD</code>.
-            Les contenus modifiés ici sont enregistrés <b>dans ce navigateur uniquement</b> : les visiteurs du site ne les verront pas
-            tant qu'une vraie base de données n'est pas branchée.
+            Chaque modification part dans la <b>base de données du site</b> et devient donc visible par tous les visiteurs.
+            Surveille l'étiquette en haut à droite : « Enregistré en ligne » signifie que c'est bien parti. Si elle passe
+            au rouge, la modification n'a été gardée que dans ce navigateur.
         </div>
 
         <div class="admin-grid">
             <aside class="admin-sidebar">
                 <ul class="admin-menu">
-                    <li class="active" onclick="switchAdminTab('dash-overview', this)">📊 Vue d'ensemble</li>
-                    <li onclick="switchAdminTab('dash-posts', this)">📢 Nouveautés & Posts</li>
-                    <li onclick="switchAdminTab('dash-players', this)">👥 Gestion Joueurs</li>
-                    <li onclick="switchAdminTab('dash-shop', this)">🛒 Ventes & Articles</li>
-                    <li onclick="switchAdminTab('dash-server', this)">🖥️ Console Serveur</li>
+                    <li class="active" onclick="switchAdminTab('dash-overview', this)">&#128202; Vue d'ensemble</li>
+                    <li onclick="switchAdminTab('dash-posts', this)">&#128226; Nouveautés & Posts</li>
+                    <li onclick="switchAdminTab('dash-players', this)">&#128101; Gestion Joueurs</li>
+                    <li onclick="switchAdminTab('dash-shop', this)">&#128722; Ventes & Articles</li>
+                    <li onclick="switchAdminTab('dash-server', this)">&#128421;&#65039; Console Serveur</li>
                 </ul>
             </aside>
 
@@ -198,7 +200,48 @@
     <script>
         const store = loadStore();
 
-        function persist() { saveStore(store); }
+        // --- SYNCHRONISATION AVEC LA BASE DE DONNÉES ---
+        let serverSaveTimer = null;
+        let serverSavePending = false;
+
+        function setSyncStatus(text, tone) {
+            const badge = document.getElementById('admin-sync-status');
+            if (!badge) return;
+            badge.textContent = text;
+            badge.dataset.tone = tone;
+        }
+
+        // Enregistre tout de suite en local, puis pousse vers le serveur. Les
+        // modifications rapprochées sont regroupées en un seul envoi.
+        function persist() {
+            saveStore(store);
+            serverSavePending = true;
+            setSyncStatus('Enregistrement...', 'busy');
+            clearTimeout(serverSaveTimer);
+            serverSaveTimer = setTimeout(pushToServer, 400);
+        }
+
+        async function pushToServer() {
+            if (!serverSavePending) return;
+            serverSavePending = false;
+
+            try {
+                const res = await saveStoreToServer(store);
+                const heure = res.savedAt ? new Date(res.savedAt).toLocaleTimeString('fr-FR') : '';
+                setSyncStatus('Enregistré en ligne' + (heure ? ' à ' + heure : ''), 'ok');
+            } catch (err) {
+                setSyncStatus('Pas enregistré en ligne : ' + err.message, 'warn');
+                console.warn('Envoi au serveur impossible.', err);
+            }
+        }
+
+        function renderEverything() {
+            updateAdminStats();
+            renderPostsTable();
+            renderPlayersTable();
+            renderProductsTable();
+            renderConsole();
+        }
 
         function openModal(id) { document.getElementById(id).classList.add('active'); }
         function closeModal(id) { document.getElementById(id).classList.remove('active'); }
@@ -397,19 +440,36 @@
             input.value = '';
         }
 
-        function resetAllData() {
-            if (!confirm('Remettre tout le contenu du site à ses valeurs par défaut ?')) return;
+        async function resetAllData() {
+            if (!confirm('Remettre tout le contenu du site à ses valeurs par défaut, pour tous les visiteurs ?')) return;
+
             resetStore();
+            setSyncStatus('Réinitialisation...', 'busy');
+
+            try {
+                await resetStoreOnServer();
+            } catch (err) {
+                console.warn('Réinitialisation du serveur impossible.', err);
+            }
+
             location.reload();
         }
 
         // --- INITIALISATION ---
-        window.addEventListener('DOMContentLoaded', () => {
-            updateAdminStats();
-            renderPostsTable();
-            renderPlayersTable();
-            renderProductsTable();
-            renderConsole();
+        window.addEventListener('DOMContentLoaded', async () => {
+            // Premier rendu avec le cache local, pour ne pas attendre le réseau.
+            renderEverything();
+
+            const status = await syncStoreFromServer(store);
+            renderEverything();
+
+            if (status.source === 'server') {
+                setSyncStatus('Contenu en ligne chargé', 'ok');
+            } else if (status.source === 'server-empty') {
+                setSyncStatus('Base en ligne vide : la première modification la remplira', 'ok');
+            } else {
+                setSyncStatus(status.message, 'warn');
+            }
         });
     </script>
 </body>

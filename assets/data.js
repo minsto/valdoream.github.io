@@ -1,14 +1,24 @@
-/*
+﻿/*
  * Données du site Valdoream.
  *
- * Le contenu est enregistré dans le localStorage du navigateur : les
- * modifications faites dans le panel admin restent visibles après un
- * rafraîchissement, mais uniquement sur l'ordinateur qui les a faites.
- * Pour que les visiteurs voient les changements, il faudra brancher une
- * vraie base de données (voir le README).
+ * Le contenu vit à deux endroits :
+ *   1. la base de données Cloudflare KV, partagée par tous les visiteurs, lue
+ *      via /api/content et écrite via /admin/api/content (protégé par mot de
+ *      passe) ;
+ *   2. le localStorage du navigateur, qui sert de cache pour afficher la page
+ *      instantanément et de filet de sécurité si le serveur est injoignable.
+ *
+ * Si la base n'est pas encore branchée sur le projet Cloudflare Pages, tout
+ * continue de fonctionner en mode local seul (voir le README).
  */
 
 const STORAGE_KEY = 'valdoream-content-v1';
+
+const PUBLIC_API = '/api/content';
+const ADMIN_API = '/admin/api/content';
+
+// État de la dernière synchronisation, affiché par le panel admin.
+const storeStatus = { source: 'local', configured: false, message: '', savedAt: null };
 
 const DEFAULT_DATA = {
     news: [
@@ -44,11 +54,18 @@ const DEFAULT_DATA = {
     ]
 };
 
+// Complète un contenu partiel avec les valeurs par défaut, pour qu'une clé
+// absente n'empêche pas l'affichage.
+function withDefaults(content) {
+    return Object.assign(structuredClone(DEFAULT_DATA), content || {});
+}
+
+// Contenu disponible immédiatement, sans attendre le réseau.
 function loadStore() {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return structuredClone(DEFAULT_DATA);
-        return Object.assign(structuredClone(DEFAULT_DATA), JSON.parse(raw));
+        return withDefaults(JSON.parse(raw));
     } catch (err) {
         console.warn('Contenu enregistré illisible, retour aux valeurs par défaut.', err);
         return structuredClone(DEFAULT_DATA);
@@ -59,12 +76,85 @@ function saveStore(store) {
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
     } catch (err) {
-        console.warn("Impossible d'enregistrer le contenu.", err);
+        console.warn("Impossible d'enregistrer le contenu dans ce navigateur.", err);
     }
 }
 
 function resetStore() {
     localStorage.removeItem(STORAGE_KEY);
+}
+
+/*
+ * Récupère le contenu partagé et remplace le contenu local par celui-ci.
+ * `store` est modifié sur place : les pages gardent la même référence, il leur
+ * suffit de rappeler leurs fonctions de rendu ensuite.
+ */
+async function syncStoreFromServer(store) {
+    try {
+        const res = await fetch(PUBLIC_API, { cache: 'no-store' });
+        if (!res.ok) throw new Error('réponse HTTP ' + res.status);
+
+        const payload = await res.json();
+        storeStatus.configured = Boolean(payload.configured);
+
+        if (!payload.configured) {
+            storeStatus.source = 'local';
+            storeStatus.message = 'Base de données non branchée : contenu enregistré dans ce navigateur uniquement.';
+            return storeStatus;
+        }
+
+        if (payload.content) {
+            Object.assign(store, withDefaults(payload.content));
+            saveStore(store);
+            storeStatus.source = 'server';
+            storeStatus.message = 'Contenu chargé depuis la base de données.';
+        } else {
+            storeStatus.source = 'server-empty';
+            storeStatus.message = 'Base de données vide : contenu par défaut affiché.';
+        }
+
+        return storeStatus;
+    } catch (err) {
+        storeStatus.source = 'local';
+        storeStatus.message = 'Serveur injoignable, contenu local affiché (' + err.message + ').';
+        return storeStatus;
+    }
+}
+
+// Envoie tout le contenu au serveur. Réservé au panel admin : l'adresse est
+// derrière le mot de passe.
+async function saveStoreToServer(store) {
+    const res = await fetch(ADMIN_API, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(store),
+        cache: 'no-store'
+    });
+
+    if (res.status === 401) {
+        throw new Error('session expirée, recharge la page pour retaper le mot de passe');
+    }
+
+    let payload = null;
+    try {
+        payload = await res.json();
+    } catch {
+        /* réponse non JSON : on retombe sur le code HTTP ci-dessous */
+    }
+
+    if (!res.ok || !payload || payload.ok !== true) {
+        throw new Error((payload && payload.error) || 'réponse HTTP ' + res.status);
+    }
+
+    storeStatus.source = 'server';
+    storeStatus.savedAt = payload.savedAt || null;
+    return payload;
+}
+
+async function resetStoreOnServer() {
+    const res = await fetch(ADMIN_API, { method: 'DELETE', cache: 'no-store' });
+    if (!res.ok) throw new Error('réponse HTTP ' + res.status);
+    return true;
 }
 
 // Neutralise le HTML saisi dans les formulaires avant de l'injecter dans la page.
