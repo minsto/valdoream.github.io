@@ -177,6 +177,16 @@ function resolveMcCommand(template, player) {
     return String(template).replace(/\{player\}/gi, String(player).trim());
 }
 
+// Retourne toutes les commandes d'un article (ancien format `command` ou tableau `commands`).
+function productCommands(product) {
+    if (!product) return [];
+    if (Array.isArray(product.commands) && product.commands.length) {
+        return product.commands.map(c => String(c).trim()).filter(Boolean);
+    }
+    if (product.command) return [String(product.command).trim()];
+    return [];
+}
+
 // Nombre de livraisons en attente cote serveur Minecraft.
 function countPendingQueue(store) {
     if (!store.queue || !Array.isArray(store.queue)) return 0;

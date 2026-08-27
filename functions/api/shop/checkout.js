@@ -32,6 +32,15 @@ function resolveCommand(template, player) {
     return template.replace(/\{player\}/gi, player).trim();
 }
 
+function productCommandList(product) {
+    if (!product) return [];
+    if (Array.isArray(product.commands) && product.commands.length) {
+        return product.commands.map(c => String(c).trim()).filter(Boolean);
+    }
+    if (product.command) return [String(product.command).trim()];
+    return [];
+}
+
 export async function onRequest({ request, env }) {
     if (request.method !== 'POST') {
         return json({ ok: false, error: 'Utilise POST avec un corps JSON.' }, 405);
@@ -40,7 +49,7 @@ export async function onRequest({ request, env }) {
     if (!env.CONTENT) {
         return json({
             ok: false,
-            error: 'Base de donnees non branchÈe : binding KV CONTENT manquant.'
+            error: 'Base de donnees non branchùe : binding KV CONTENT manquant.'
         }, 503);
     }
 
@@ -82,23 +91,40 @@ export async function onRequest({ request, env }) {
                 continue;
             }
 
-            const command = resolveCommand(product.command, player);
-            if (!command) {
+            const templates = productCommandList(product);
+            if (!templates.length) {
                 missing.push(product.name + ' (pas de commande configuree)');
                 continue;
             }
 
-            const entry = {
-                id: Date.now() + Math.floor(Math.random() * 1000),
-                player,
-                command,
-                source: 'shop',
-                itemName: product.name,
-                status: 'pending',
-                createdAt: new Date().toISOString()
-            };
-            content.queue.unshift(entry);
-            queued.push(entry);
+            let itemQueued = false;
+
+            for (const template of templates) {
+                const command = resolveCommand(template, player);
+                if (!command) continue;
+
+                const entry = {
+                    id: Date.now() + Math.floor(Math.random() * 1000),
+                    player,
+                    command,
+                    source: 'shop',
+                    itemName: product.name,
+                    status: 'pending',
+                    createdAt: new Date().toISOString()
+                };
+                content.queue.unshift(entry);
+                queued.push(entry);
+                itemQueued = true;
+
+                content.logs.push(
+                    `[Boutique]: ${player} a achete ${product.name} - commande en attente (${command})`
+                );
+            }
+
+            if (!itemQueued) {
+                missing.push(product.name + ' (commandes invalides)');
+                continue;
+            }
 
             content.sales.unshift({
                 player,
@@ -106,9 +132,6 @@ export async function onRequest({ request, env }) {
                 price: Number(product.price),
                 date: now
             });
-            content.logs.push(
-                `[Boutique]: ${player} a achete ${product.name} ó commande en attente (${command})`
-            );
         }
 
         if (queued.length === 0) {

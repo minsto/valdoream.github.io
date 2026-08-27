@@ -106,7 +106,7 @@
                 <!-- TAB 4 : ARTICLES -->
                 <div id="dash-shop" class="admin-tab-content" style="display: none;">
                     <h3 style="margin-bottom: 20px;">Gestion du Catalogue Boutique</h3>
-                    <button class="btn-primary" style="margin-bottom: 20px; background: var(--admin-color);" onclick="openModal('add-product-modal')">+ Ajouter un article</button>
+                    <button class="btn-primary" style="margin-bottom: 20px; background: var(--admin-color);" onclick="openProductModal()">+ Ajouter un article</button>
                     <table class="admin-table">
                         <thead>
                             <tr><th>Catégorie</th><th>Nom de l'article</th><th>Prix</th><th>Actions</th></tr>
@@ -231,10 +231,12 @@
                     <input type="text" id="prod-desc" required placeholder="Courte description de l'objet">
                 </div>
                 <div class="form-group">
-                    <label>Commande Minecraft (utilisez <code>{player}</code>)</label>
-                    <input type="text" id="prod-command" required placeholder="Ex: give {player} minecraft:diamond 64">
-                    <p style="color: var(--text-gray); font-size: 0.75rem; margin-top: 6px;">
-                        Grades LuckPerms : <code>lp user {player} parent set vip</code>
+                    <label>Commandes Minecraft (utilisez <code>{player}</code>)</label>
+                    <div id="prod-commands-list" class="prod-commands-list"></div>
+                    <button type="button" class="btn-secondary prod-command-add" onclick="addProductCommandRow()">+ Ajouter une commande</button>
+                    <p style="color: var(--text-gray); font-size: 0.75rem; margin-top: 8px;">
+                        Une ligne = une commande executee a l'achat. Ex. grade + kit :
+                        <code>lp user {player} parent set vip</code> puis <code>give {player} minecraft:apple 1</code>
                     </p>
                 </div>
                 <button type="submit" class="btn-primary" style="background: var(--admin-color); width: 100%;">Publier dans la boutique</button>
@@ -428,6 +430,55 @@
         }
 
         // --- BOUTIQUE ---
+        function openProductModal() {
+            openModal('add-product-modal');
+            resetProductCommands();
+        }
+
+        function resetProductCommands() {
+            const list = document.getElementById('prod-commands-list');
+            if (!list) return;
+            list.innerHTML = '';
+            addProductCommandRow('');
+        }
+
+        function addProductCommandRow(value = '') {
+            const list = document.getElementById('prod-commands-list');
+            if (!list) return;
+
+            const row = document.createElement('div');
+            row.className = 'prod-command-row';
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'prod-command-input';
+            input.placeholder = 'Ex: give {player} minecraft:diamond 64';
+            input.required = true;
+            input.value = value;
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'action-btn delete prod-command-remove';
+            btn.textContent = 'Retirer';
+            btn.onclick = () => removeProductCommandRow(btn);
+
+            row.appendChild(input);
+            row.appendChild(btn);
+            list.appendChild(row);
+        }
+
+        function removeProductCommandRow(btn) {
+            const list = document.getElementById('prod-commands-list');
+            if (!list || list.children.length <= 1) return;
+            btn.closest('.prod-command-row').remove();
+        }
+
+        function collectProductCommands() {
+            return [...document.querySelectorAll('#prod-commands-list .prod-command-input')]
+                .map(el => el.value.trim())
+                .filter(Boolean);
+        }
+
         function renderProductsTable() {
             document.getElementById('admin-products-table').innerHTML = store.shop.map(prod => `
                 <tr>
@@ -445,15 +496,29 @@
             const name = document.getElementById('prod-name').value;
             const price = parseFloat(document.getElementById('prod-price').value);
             const desc = document.getElementById('prod-desc').value;
-            const command = document.getElementById('prod-command').value.trim();
+            const commands = collectProductCommands();
 
-            store.shop.push({ id: Date.now(), category, name, price, desc, command });
+            if (!commands.length) {
+                alert('Ajoutez au moins une commande Minecraft.');
+                return;
+            }
+
+            store.shop.push({
+                id: Date.now(),
+                category,
+                name,
+                price,
+                desc,
+                commands,
+                command: commands[0]
+            });
             persist();
             e.target.reset();
+            resetProductCommands();
             closeModal('add-product-modal');
             renderProductsTable();
             updateAdminStats();
-            addConsoleLog(`[BOUTIQUE]: Nouvel article publié : ${name} (${price}€)`);
+            addConsoleLog(`[BOUTIQUE]: Nouvel article publie : ${name} (${commands.length} commande(s))`);
         }
 
         function deleteProduct(id) {
