@@ -61,8 +61,69 @@ Le contenu modifié dans le panel part dans **Workers KV**, la base de données 
 | --- | --- | --- |
 | `/api/content` | `GET` | tout le monde, en lecture seule |
 | `/admin/api/content` | `GET`, `PUT`, `DELETE` | seulement avec le mot de passe du panel |
+| `/api/shop/checkout` | `POST` | achat boutique (pseudo + panier) |
+| `/api/minecraft/queue` | `GET`, `POST` | le serveur Minecraft (cle `SERVER_API_KEY`) |
+| `/admin/api/minecraft/command` | `POST` | console admin (mot de passe panel) |
 
-L'adresse d'écriture est volontairement placée sous `/admin/` : le middleware qui garde le panel s'exécute avant elle, et le navigateur y renvoie tout seul les identifiants déjà saisis.
+## Livraison en jeu (NeoForge / Minecraft)
+
+La boutique et la console ne parlent pas directement au serveur Minecraft : elles ajoutent des commandes dans une **file d'attente** (`queue` dans la base KV). Un petit script sur la machine du serveur les execute via **RCON**.
+
+### 1. Variable Cloudflare
+
+Dans le projet Pages, **Settings &#8594; Environment variables**, ajouter :
+
+| Variable | Type | Exemple |
+| --- | --- | --- |
+| `SERVER_API_KEY` | Secret | une longue phrase aleatoire |
+
+### 2. RCON sur le serveur NeoForge
+
+Dans `server.properties` :
+
+```properties
+enable-rcon=true
+rcon.port=25575
+rcon.password=votre-mot-de-passe-rcon
+```
+
+Redemarrer le serveur Minecraft.
+
+### 3. Commandes sur chaque article
+
+Dans le panel admin, chaque produit a un champ **Commande Minecraft** avec `{player}` :
+
+| Type | Exemple |
+| --- | --- |
+| Grade (LuckPerms) | `lp user {player} parent set vip` |
+| Objet vanilla | `give {player} minecraft:diamond 64` |
+| Objet mod NeoForge | `give {player} modid:item_name 1` |
+
+Adaptez les noms de grades LuckPerms et les IDs d'objets a votre serveur.
+
+### 4. Lancer le bridge
+
+Sur la machine qui peut joindre le RCON du serveur :
+
+```powershell
+$env:SERVER_API_KEY = "la-meme-cle-que-cloudflare"
+$env:VALDOREAM_SITE = "https://valdoream.pages.dev"
+$env:RCON_HOST = "127.0.0.1"
+$env:RCON_PORT = "25575"
+$env:RCON_PASSWORD = "votre-mot-de-passe-rcon"
+python tools/minecraft-bridge.py
+```
+
+Le script interroge le site toutes les 5 secondes, execute les commandes en attente, et confirme le resultat.
+
+### 5. Cote joueur
+
+1. Le joueur clique **Joueur** et entre son pseudo Minecraft exact.
+2. Il achete dans la boutique.
+3. Sous quelques secondes (si le bridge tourne), l'objet ou le grade arrive en jeu.
+
+**Paiement reel :** le checkout actuel livre en jeu sans encaisser l'argent. Brancher **Stripe** avant d'ouvrir la boutique au public.
+
 
 ### Brancher la base de données
 

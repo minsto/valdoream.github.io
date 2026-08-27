@@ -263,12 +263,16 @@
         <div class="modal-content">
             <button class="modal-close" onclick="closeModal('auth-modal')">&times;</button>
             <h3 style="margin-bottom: 15px; text-align: center;">Connexion Joueur</h3>
-            <button class="google-btn-mock" onclick="mockGoogleLogin()">
-                <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="G" style="width: 20px;">
-                Se connecter avec Google
-            </button>
-            <p style="color: var(--text-gray); font-size: 0.8rem; text-align: center; margin-top: 15px;">
-                Démonstration : la connexion Google n'est pas encore branchée.
+            <p style="color: var(--text-gray); font-size: 0.85rem; text-align: center; margin-bottom: 15px;">
+                Entrez votre <b>pseudo Minecraft exact</b> pour recevoir vos achats en jeu.
+            </p>
+            <div class="form-group">
+                <input type="text" id="player-pseudo-input" maxlength="16" placeholder="Ex: DarkSlayer99" pattern="[a-zA-Z0-9_]{3,16}" required
+                    style="width: 100%; padding: 12px; background: var(--bg-dark-2); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 6px;">
+            </div>
+            <button class="btn-primary" style="width: 100%;" onclick="playerLogin()">Confirmer mon pseudo</button>
+            <p style="color: var(--text-gray); font-size: 0.75rem; text-align: center; margin-top: 12px;">
+                3 a 16 caracteres : lettres, chiffres et underscore uniquement.
             </p>
         </div>
     </div>
@@ -291,8 +295,9 @@
     <script>
         const store = loadStore();
         let cart = [];
+        let playerPseudo = null;
 
-        // --- NAVIGATION INTERPAGE ---
+        const PSEUDO_RE = /^[a-zA-Z0-9_]{3,16}$/;
         function showPage(pageId) {
             document.querySelectorAll('.page-section').forEach(sec => sec.classList.remove('active'));
             document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
@@ -372,7 +377,7 @@
         function addToCart(productId) {
             const product = store.shop.find(p => p.id === productId);
             if (!product) return;
-            cart.push({ name: product.name, price: Number(product.price) });
+            cart.push({ id: product.id, name: product.name, price: Number(product.price) });
             updateCartUI();
             openModal('cart-modal');
         }
@@ -398,20 +403,44 @@
             document.getElementById('cart-total-price').innerText = formatPrice(total);
         }
 
-        function checkoutCart() {
+        async function checkoutCart() {
             if (cart.length === 0) return alert('Votre panier est vide.');
-            const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            if (!playerPseudo) {
+                alert('Indiquez votre pseudo Minecraft avant de payer.');
+                openModal('auth-modal');
+                return;
+            }
 
-            cart.forEach(item => {
-                store.sales.unshift({ player: 'Joueur_Connecté', item: item.name, price: item.price, date: now });
-                store.logs.push(`[BOUTIQUE]: Achat validé pour ${item.name} (${item.price}€)`);
-            });
-            saveStore(store);
+            try {
+                const res = await fetch('/api/shop/checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        player: playerPseudo,
+                        items: cart.map(i => ({ id: i.id, name: i.name, price: i.price }))
+                    }),
+                    cache: 'no-store'
+                });
 
-            cart = [];
-            updateCartUI();
-            closeModal('cart-modal');
-            alert('Merci pour votre achat ! Les articles ont été crédités en jeu.');
+                const payload = await res.json().catch(() => ({}));
+
+                if (!res.ok || !payload.ok) {
+                    alert(payload.error || 'Impossible d envoyer la commande au serveur.');
+                    return;
+                }
+
+                cart = [];
+                updateCartUI();
+                closeModal('cart-modal');
+
+                let msg = 'Merci ! ' + (payload.message || 'Vos articles arrivent en jeu sous quelques secondes.');
+                if (payload.missing && payload.missing.length) {
+                    msg += '\n\nArticles non livrables : ' + payload.missing.join(', ');
+                }
+                alert(msg);
+            } catch (err) {
+                alert('Erreur reseau : ' + err.message);
+            }
         }
 
         function switchShopCategory(catId, btn) {
@@ -425,8 +454,15 @@
         function openModal(id) { document.getElementById(id).classList.add('active'); }
         function closeModal(id) { document.getElementById(id).classList.remove('active'); }
 
-        function mockGoogleLogin() {
-            document.getElementById('btn-login').innerHTML = '&#128100; Joueur_Test';
+        function playerLogin() {
+            const input = document.getElementById('player-pseudo-input');
+            const pseudo = (input?.value || '').trim();
+            if (!PSEUDO_RE.test(pseudo)) {
+                alert('Pseudo invalide : 3 a 16 caracteres (lettres, chiffres, _).');
+                return;
+            }
+            playerPseudo = pseudo;
+            document.getElementById('btn-login').innerHTML = '&#128100; ' + esc(pseudo);
             document.getElementById('btn-login').style.borderColor = '#2bcf5e';
             closeModal('auth-modal');
         }

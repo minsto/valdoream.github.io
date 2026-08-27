@@ -125,7 +125,8 @@
                         <button type="submit" class="btn-secondary">Exécuter</button>
                     </form>
                     <p style="color: var(--text-gray); font-size: 0.8rem; margin-top: 10px;">
-                        Cette console est une simulation : elle n'envoie aucune commande au serveur Minecraft.
+                        Les commandes partent dans la file d'attente Minecraft. Lancez <code>tools/minecraft-bridge.py</code> sur la machine du serveur NeoForge pour les executer.
+                        En attente : <b id="queue-pending-count">0</b>
                     </p>
                 </div>
             </main>
@@ -191,6 +192,13 @@
                     <label>Description</label>
                     <input type="text" id="prod-desc" required placeholder="Courte description de l'objet">
                 </div>
+                <div class="form-group">
+                    <label>Commande Minecraft (utilisez <code>{player}</code>)</label>
+                    <input type="text" id="prod-command" required placeholder="Ex: give {player} minecraft:diamond 64">
+                    <p style="color: var(--text-gray); font-size: 0.75rem; margin-top: 6px;">
+                        Grades LuckPerms : <code>lp user {player} parent set vip</code>
+                    </p>
+                </div>
                 <button type="submit" class="btn-primary" style="background: var(--admin-color); width: 100%;">Publier dans la boutique</button>
             </form>
         </div>
@@ -241,6 +249,12 @@
             renderPlayersTable();
             renderProductsTable();
             renderConsole();
+            updateQueueBadge();
+        }
+
+        function updateQueueBadge() {
+            const el = document.getElementById('queue-pending-count');
+            if (el) el.textContent = countPendingQueue(store);
         }
 
         function openModal(id) { document.getElementById(id).classList.add('active'); }
@@ -384,8 +398,9 @@
             const name = document.getElementById('prod-name').value;
             const price = parseFloat(document.getElementById('prod-price').value);
             const desc = document.getElementById('prod-desc').value;
+            const command = document.getElementById('prod-command').value.trim();
 
-            store.shop.push({ id: Date.now(), category, name, price, desc });
+            store.shop.push({ id: Date.now(), category, name, price, desc, command });
             persist();
             e.target.reset();
             closeModal('add-product-modal');
@@ -408,36 +423,42 @@
             box.scrollTop = box.scrollHeight;
         }
 
-        function addConsoleLog(msg) {
+        function addConsoleLog(msg, save = true) {
             store.logs.push(`[${new Date().toLocaleTimeString()}] ${msg}`);
-            persist();
+            if (save) persist();
             renderConsole();
         }
 
-        function executeConsoleCommand(e) {
+        async function executeConsoleCommand(e) {
             e.preventDefault();
             const input = document.getElementById('console-input');
             const cmd = input.value.trim();
             if (!cmd) return;
 
-            addConsoleLog(`> ${cmd}`);
-
-            if (cmd.startsWith('/ban ')) {
-                const pseudo = cmd.split(' ')[1];
-                const p = store.players.find(x => x.pseudo.toLowerCase() === (pseudo || '').toLowerCase());
-                if (p) {
-                    p.status = 'Banni';
-                    persist();
-                    renderPlayersTable();
-                    addConsoleLog(`[CONSOLE]: Joueur ${pseudo} banni.`);
-                } else {
-                    addConsoleLog(`[ERREUR]: Joueur ${pseudo} introuvable.`);
-                }
-            } else {
-                addConsoleLog(`[CONSOLE]: Commande "${cmd}" exécutée avec succès.`);
-            }
-
+            addConsoleLog(`> ${cmd}`, false);
             input.value = '';
+
+            try {
+                const res = await fetch('/admin/api/minecraft/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command: cmd }),
+                    cache: 'no-store'
+                });
+                const payload = await res.json().catch(() => ({}));
+
+                if (!res.ok || !payload.ok) {
+                    addConsoleLog(`[ERREUR]: ${payload.error || 'HTTP ' + res.status}`, false);
+                    return;
+                }
+
+                await syncStoreFromServer(store);
+                renderConsole();
+                updateQueueBadge();
+                addConsoleLog('[CONSOLE]: Commande envoyee au serveur (en attente d execution).', false);
+            } catch (err) {
+                addConsoleLog('[ERREUR]: ' + err.message, false);
+            }
         }
 
         async function resetAllData() {

@@ -31,11 +31,11 @@ const DEFAULT_DATA = {
         { id: 2, author: 'Elena', role: 'Lead Artist', time: 'Hier', content: 'Nous préparons les textures des armures de la Saison 2. Rendez-vous très bientôt pour les premiers aperçus !', tag: 'Studio' }
     ],
     shop: [
-        { id: 1, category: 'grades', name: 'Grade VIP', price: 5.00, desc: 'Connexion prioritaire, 2 Homes, Kit VIP 24h et préfixe jaune.' },
-        { id: 2, category: 'grades', name: 'Grade Épique', price: 10.00, desc: 'Avantages VIP + 5 Homes, Kit Épique 48h et cosmétiques.' },
-        { id: 3, category: 'grades', name: 'Grade Légende', price: 20.00, desc: 'Tous les avantages, préfixe animé, monture au spawn et 10 Homes.' },
-        { id: 4, category: 'items', name: 'Pack x5 Clés Donjon', price: 4.50, desc: 'Ouvre 5 coffres mythiques à la fin des donjons.' },
-        { id: 5, category: 'items', name: 'Pass Aventurier Saison 1', price: 8.00, desc: '50 paliers de récompenses cosmétiques et ressources.' }
+        { id: 1, category: 'grades', name: 'Grade VIP', price: 5.00, desc: 'Connexion prioritaire, 2 Homes, Kit VIP 24h et préfixe jaune.', command: 'lp user {player} parent set vip' },
+        { id: 2, category: 'grades', name: 'Grade Épique', price: 10.00, desc: 'Avantages VIP + 5 Homes, Kit Épique 48h et cosmétiques.', command: 'lp user {player} parent set epic' },
+        { id: 3, category: 'grades', name: 'Grade Légende', price: 20.00, desc: 'Tous les avantages, préfixe animé, monture au spawn et 10 Homes.', command: 'lp user {player} parent set legend' },
+        { id: 4, category: 'items', name: 'Pack x5 Clés Donjon', price: 4.50, desc: 'Ouvre 5 coffres mythiques à la fin des donjons.', command: 'give {player} minecraft:tripwire_hook 5' },
+        { id: 5, category: 'items', name: 'Pass Aventurier Saison 1', price: 8.00, desc: '50 paliers de récompenses cosmétiques et ressources.', command: 'give {player} minecraft:paper 1' }
     ],
     players: [
         { id: 1, pseudo: 'DarkSlayer99', grade: 'Épique', status: 'En ligne' },
@@ -51,13 +51,16 @@ const DEFAULT_DATA = {
         '[SYSTEM]: Serveur démarré sur le port 25565.',
         '[INFO]: Chargement du monde Survie RPG effectué.',
         '[Boutique]: Transaction #1042 enregistrée avec succès.'
-    ]
+    ],
+    queue: []
 };
 
 // Complète un contenu partiel avec les valeurs par défaut, pour qu'une clé
 // absente n'empêche pas l'affichage.
 function withDefaults(content) {
-    return Object.assign(structuredClone(DEFAULT_DATA), content || {});
+    const merged = Object.assign(structuredClone(DEFAULT_DATA), content || {});
+    if (!Array.isArray(merged.queue)) merged.queue = [];
+    return merged;
 }
 
 // Contenu disponible immédiatement, sans attendre le réseau.
@@ -166,4 +169,16 @@ function esc(value) {
 
 function formatPrice(value) {
     return Number(value).toFixed(2).replace('.', ',') + ' €';
+}
+
+// Remplace {player} dans une commande Minecraft configuree sur un article.
+function resolveMcCommand(template, player) {
+    if (!template) return null;
+    return String(template).replace(/\{player\}/gi, String(player).trim());
+}
+
+// Nombre de livraisons en attente cote serveur Minecraft.
+function countPendingQueue(store) {
+    if (!store.queue || !Array.isArray(store.queue)) return 0;
+    return store.queue.filter(q => q.status === 'pending').length;
 }
