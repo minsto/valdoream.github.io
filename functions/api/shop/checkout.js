@@ -147,7 +147,7 @@ export async function onRequest({ request, env }) {
             ok: true,
             queued: queued.length,
             missing,
-            message: queued.length + ' commande(s) envoyee(s) au serveur Minecraft.'
+            message: queued.length + ' commande(s) envoyee(s) au serveur Valdoream.'
         });
     } catch (err) {
         return json({ ok: false, error: String(err) }, 502);

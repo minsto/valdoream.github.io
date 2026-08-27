@@ -433,7 +433,7 @@
                 updateCartUI();
                 closeModal('cart-modal');
 
-                let msg = 'Merci ! ' + (payload.message || 'Vos articles arrivent en jeu sous quelques secondes.');
+                let msg = 'Merci ! ' + (payload.message || 'Vos articles arrivent sur le serveur Valdoream sous quelques secondes.');
                 if (payload.missing && payload.missing.length) {
                     msg += '\n\nArticles non livrables : ' + payload.missing.join(', ');
                 }
