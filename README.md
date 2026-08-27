@@ -116,6 +116,17 @@ python tools/minecraft-bridge.py
 
 Le script interroge le site toutes les 5 secondes, execute les commandes en attente, et confirme le resultat.
 
+## Mod NeoForge (recommande — console complete)
+
+Le dossier **`minecraft-mod/`** contient un mod pret a copier dans **Valdoream Engine** :
+
+- Logs console **en direct** dans le panel admin
+- Joueurs en ligne, TPS, statut serveur
+- File de livraisons boutique visible
+- Commandes admin executees sur le vrai serveur (sans RCON)
+
+Voir **`minecraft-mod/README.md`** pour l'installation et la config `config/valdoream_webbridge.properties`.
+
 ### 5. Cote joueur
 
 1. Le joueur clique **Joueur** et entre son pseudo Minecraft exact.

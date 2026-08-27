@@ -117,16 +117,54 @@
 
                 <!-- TAB 5 : CONSOLE -->
                 <div id="dash-server" class="admin-tab-content" style="display: none;">
-                    <h3 style="margin-bottom: 20px;">Console de Commandes En Direct</h3>
-                    <div id="console-output" style="background: black; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 0.9rem; color: #aaa; height: 320px; overflow-y: scroll; border: 1px solid #333; line-height: 1.5;"></div>
-                    <form onsubmit="executeConsoleCommand(event)" style="display: flex; gap: 10px; margin-top: 15px;">
-                        <span style="color: var(--admin-color); font-weight: bold; font-family: monospace; align-self: center;">></span>
-                        <input type="text" id="console-input" placeholder="Entrez une commande (ex: /say Bonjour, /ban Pseudo)..." style="flex-grow:1; padding: 10px; background: black; border: 1px solid #333; color: white; border-radius: 4px; font-family: monospace;">
-                        <button type="submit" class="btn-secondary">Exécuter</button>
-                    </form>
-                    <p style="color: var(--text-gray); font-size: 0.8rem; margin-top: 10px;">
-                        Les commandes partent dans la file d'attente Minecraft. Lancez <code>tools/minecraft-bridge.py</code> sur la machine du serveur NeoForge pour les executer.
-                        En attente : <b id="queue-pending-count">0</b>
+                    <div class="console-toolbar">
+                        <div>
+                            <h3 style="margin-bottom: 6px;">Console Serveur Minecraft</h3>
+                            <p id="server-live-status" class="server-live-badge" data-state="offline">Serveur hors ligne</p>
+                        </div>
+                        <div class="console-stats">
+                            <span id="server-player-count">0 / 0 joueurs</span>
+                            <span id="server-tps">TPS —</span>
+                            <span>En attente : <b id="queue-pending-count">0</b></span>
+                        </div>
+                    </div>
+
+                    <div class="console-layout">
+                        <section class="console-panel">
+                            <h4>Logs en direct</h4>
+                            <div id="console-output" class="console-box"></div>
+                            <form onsubmit="executeConsoleCommand(event)" class="console-form">
+                                <span class="console-prompt">&gt;</span>
+                                <input type="text" id="console-input" placeholder="Commande serveur (say, give, ban, lp user...)">
+                                <button type="submit" class="btn-secondary">Executer</button>
+                            </form>
+                        </section>
+
+                        <aside class="console-side">
+                            <div class="console-side-block">
+                                <h4>Joueurs en ligne</h4>
+                                <ul id="server-players-list" class="console-list">
+                                    <li class="console-empty">Aucun joueur</li>
+                                </ul>
+                            </div>
+                            <div class="console-side-block">
+                                <h4>Livraisons boutique (en attente)</h4>
+                                <ul id="queue-pending-list" class="console-list">
+                                    <li class="console-empty">Rien en attente</li>
+                                </ul>
+                            </div>
+                            <div class="console-side-block">
+                                <h4>Dernieres livraisons</h4>
+                                <ul id="queue-recent-list" class="console-list console-list-small">
+                                    <li class="console-empty">Aucune livraison recente</li>
+                                </ul>
+                            </div>
+                        </aside>
+                    </div>
+
+                    <p class="console-footnote">
+                        Installez le mod <code>valdoream-web-bridge</code> sur votre serveur NeoForge (dossier <code>minecraft-mod/</code>).
+                        Configurez <code>config/valdoream_webbridge.properties</code> avec l'URL du site et <code>SERVER_API_KEY</code>.
                     </p>
                 </div>
             </main>
@@ -243,12 +281,13 @@
             }
         }
 
+        let livePollTimer = null;
+
         function renderEverything() {
             updateAdminStats();
             renderPostsTable();
             renderPlayersTable();
             renderProductsTable();
-            renderConsole();
             updateQueueBadge();
         }
 
@@ -266,6 +305,14 @@
 
             document.querySelectorAll('.admin-tab-content').forEach(el => el.style.display = 'none');
             document.getElementById(tabId).style.display = 'block';
+
+            if (tabId === 'dash-server') {
+                refreshLiveConsole();
+                if (!livePollTimer) livePollTimer = setInterval(refreshLiveConsole, 3000);
+            } else if (livePollTimer) {
+                clearInterval(livePollTimer);
+                livePollTimer = null;
+            }
         }
 
         // --- VUE D'ENSEMBLE ---
@@ -416,17 +463,97 @@
             updateAdminStats();
         }
 
-        // --- CONSOLE ---
-        function renderConsole() {
+        // --- CONSOLE SERVEUR LIVE ---
+        async function refreshLiveConsole() {
+            try {
+                const res = await fetch('/admin/api/minecraft/live', { cache: 'no-store' });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || !data.ok) return;
+
+                const srv = data.server || {};
+                const badge = document.getElementById('server-live-status');
+                if (badge) {
+                    if (srv.connected) {
+                        badge.textContent = 'Serveur en ligne' + (srv.modVersion ? ' (' + srv.modVersion + ')' : '');
+                        badge.dataset.state = 'online';
+                    } else {
+                        badge.textContent = 'Serveur hors ligne — lancez le mod valdoream-web-bridge';
+                        badge.dataset.state = 'offline';
+                    }
+                }
+
+                const pc = document.getElementById('server-player-count');
+                if (pc) pc.textContent = (srv.online ?? 0) + ' / ' + (srv.maxPlayers ?? 0) + ' joueurs';
+
+                const tps = document.getElementById('server-tps');
+                if (tps) tps.textContent = srv.tps != null ? ('TPS ' + Number(srv.tps).toFixed(1)) : 'TPS —';
+
+                const qCount = document.getElementById('queue-pending-count');
+                if (qCount) qCount.textContent = data.queue?.pendingCount ?? 0;
+
+                renderConsoleLogs(data.consoleLogs || []);
+                renderPlayerList(srv.players || []);
+                renderQueueLists(data.queue || {});
+            } catch (err) {
+                console.warn('Console live indisponible.', err);
+            }
+        }
+
+        function renderConsoleLogs(lines) {
             const box = document.getElementById('console-output');
-            box.innerHTML = store.logs.map(l => `<div>${esc(l)}</div>`).join('');
+            if (!box) return;
+            if (!lines.length) {
+                box.innerHTML = '<div class="console-empty">En attente de logs du serveur Minecraft...</div>';
+                return;
+            }
+            box.innerHTML = lines.map(l => '<div>' + esc(l) + '</div>').join('');
             box.scrollTop = box.scrollHeight;
+        }
+
+        function renderPlayerList(players) {
+            const ul = document.getElementById('server-players-list');
+            if (!ul) return;
+            if (!players.length) {
+                ul.innerHTML = '<li class="console-empty">Aucun joueur</li>';
+                return;
+            }
+            ul.innerHTML = players.map(p => '<li>' + esc(p) + '</li>').join('');
+        }
+
+        function renderQueueLists(queue) {
+            const pending = queue.pending || [];
+            const recent = queue.recent || [];
+
+            const pendUl = document.getElementById('queue-pending-list');
+            if (pendUl) {
+                if (!pending.length) {
+                    pendUl.innerHTML = '<li class="console-empty">Rien en attente</li>';
+                } else {
+                    pendUl.innerHTML = pending.map(q =>
+                        '<li><b>' + esc(q.player) + '</b> — ' + esc(q.itemName || q.command) +
+                        '<br><code>' + esc(q.command) + '</code></li>'
+                    ).join('');
+                }
+            }
+
+            const recUl = document.getElementById('queue-recent-list');
+            if (recUl) {
+                if (!recent.length) {
+                    recUl.innerHTML = '<li class="console-empty">Aucune livraison recente</li>';
+                } else {
+                    recUl.innerHTML = recent.map(q => {
+                        const ok = q.status === 'done';
+                        return '<li class="' + (ok ? 'q-ok' : 'q-fail') + '">' +
+                            esc(q.player) + ' — ' + esc(q.itemName || q.command) +
+                            ' <span>(' + esc(q.status) + ')</span></li>';
+                    }).join('');
+                }
+            }
         }
 
         function addConsoleLog(msg, save = true) {
             store.logs.push(`[${new Date().toLocaleTimeString()}] ${msg}`);
             if (save) persist();
-            renderConsole();
         }
 
         async function executeConsoleCommand(e) {
@@ -435,7 +562,6 @@
             const cmd = input.value.trim();
             if (!cmd) return;
 
-            addConsoleLog(`> ${cmd}`, false);
             input.value = '';
 
             try {
@@ -448,16 +574,15 @@
                 const payload = await res.json().catch(() => ({}));
 
                 if (!res.ok || !payload.ok) {
-                    addConsoleLog(`[ERREUR]: ${payload.error || 'HTTP ' + res.status}`, false);
+                    alert(payload.error || 'HTTP ' + res.status);
                     return;
                 }
 
                 await syncStoreFromServer(store);
-                renderConsole();
                 updateQueueBadge();
-                addConsoleLog('[CONSOLE]: Commande envoyee au serveur (en attente d execution).', false);
+                refreshLiveConsole();
             } catch (err) {
-                addConsoleLog('[ERREUR]: ' + err.message, false);
+                alert('Erreur : ' + err.message);
             }
         }
 

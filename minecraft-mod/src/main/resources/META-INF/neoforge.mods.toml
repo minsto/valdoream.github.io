@@ -1,0 +1,27 @@
+modLoader="javafml"
+loaderVersion="[1,)"
+license="All Rights Reserved"
+
+[[mods]]
+modId="valdoream_webbridge"
+version="1.0.0"
+displayName="Valdoream Web Bridge"
+description='''
+Connecte le serveur NeoForge au panel admin Valdoream (valdoream.pages.dev).
+Execute les commandes boutique, envoie les logs console et la liste des joueurs.
+'''
+authors="Valdoream Studio"
+
+[[dependencies.valdoream_webbridge]]
+modId="neoforge"
+type="required"
+versionRange="[21.1,)"
+ordering="NONE"
+side="SERVER"
+
+[[dependencies.valdoream_webbridge]]
+modId="minecraft"
+type="required"
+versionRange="[1.21.1,1.22)"
+ordering="NONE"
+side="SERVER"

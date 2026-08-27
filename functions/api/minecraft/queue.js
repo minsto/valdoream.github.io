@@ -1,53 +1,35 @@
 /*
- * File d'attente Minecraft : le serveur NeoForge (ou le script bridge) interroge
- * cette adresse pour recuperer les commandes a executer, puis confirme quand
- * c'est fait.
- *
- * Authentification : en-tete X-Server-Key = variable SERVER_API_KEY du projet
- * Cloudflare Pages (type Secret). Ne jamais mettre cette cle dans le code du site.
+ * File d'attente Minecraft : le mod NeoForge interroge cette adresse pour
+ * recuperer les commandes a executer, puis confirme quand c'est fait.
  */
 
-const CONTENT_KEY = 'content';
-
-function json(payload, status = 200) {
-    return new Response(JSON.stringify(payload), {
-        status,
-        headers: {
-            'Content-Type': 'application/json; charset=utf-8',
-            'Cache-Control': 'no-store, max-age=0'
-        }
-    });
-}
-
-function checkKey(request, env) {
-    const expected = env.SERVER_API_KEY;
-    if (!expected) return 'SERVER_API_KEY non configuree dans Cloudflare Pages.';
-    const got = request.headers.get('X-Server-Key') || request.headers.get('x-server-key');
-    if (!got || got !== expected) return 'Cle serveur invalide.';
-    return null;
-}
-
-function withQueue(content) {
-    if (!content || typeof content !== 'object') return { queue: [] };
-    if (!Array.isArray(content.queue)) content.queue = [];
-    return content;
-}
+import {
+    checkServerKey,
+    json,
+    queueSummary,
+    readContent,
+    writeContent
+} from './_lib';
 
 export async function onRequest({ request, env }) {
     if (!env.CONTENT) {
         return json({ ok: false, error: 'Binding KV CONTENT manquant.' }, 503);
     }
 
-    const authErr = checkKey(request, env);
+    const authErr = checkServerKey(request, env);
     if (authErr) return json({ ok: false, error: authErr }, 401);
 
     try {
-        const stored = await env.CONTENT.get(CONTENT_KEY, 'json');
-        const content = withQueue(stored ?? {});
+        const content = await readContent(env);
 
         if (request.method === 'GET') {
-            const pending = content.queue.filter(q => q.status === 'pending');
-            return json({ ok: true, pending, count: pending.length });
+            const summary = queueSummary(content.queue);
+            return json({
+                ok: true,
+                pending: summary.pending,
+                recent: summary.recent,
+                count: summary.pendingCount
+            });
         }
 
         if (request.method === 'POST') {
@@ -74,12 +56,11 @@ export async function onRequest({ request, env }) {
             if (body.error) entry.error = String(body.error);
 
             const stamp = new Date().toLocaleTimeString('fr-FR');
-            if (!Array.isArray(content.logs)) content.logs = [];
             content.logs.push(
-                `[MC ${stamp}]: ${entry.command} ? ${status}${body.error ? ' (' + body.error + ')' : ''}`
+                `[MC ${stamp}]: ${entry.command} -> ${status}${body.error ? ' (' + body.error + ')' : ''}`
             );
 
-            await env.CONTENT.put(CONTENT_KEY, JSON.stringify(content));
+            await writeContent(env, content);
             return json({ ok: true, id, status });
         }
 
