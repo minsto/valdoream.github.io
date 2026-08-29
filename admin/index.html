@@ -404,13 +404,29 @@
                 }).join('');
         }
 
-        function toggleBanPlayer(id) {
+        async function toggleBanPlayer(id) {
             const p = store.players.find(x => x.id === id);
             if (!p) return;
             p.status = p.status === 'Banni' ? 'Hors ligne' : 'Banni';
             persist();
-            addConsoleLog(`[MODERATION]: Le statut de ${p.pseudo} a été modifié vers ${p.status}.`);
+            addConsoleLog(`[MODERATION]: Le statut de ${p.pseudo} a ete modifie vers ${p.status}.`);
             renderPlayersTable();
+
+            try {
+                await fetch('/admin/api/players/sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        minecraftPseudo: p.pseudo,
+                        banned: p.status === 'Banni',
+                        banReason: p.status === 'Banni' ? 'Banni depuis le panel admin' : null,
+                        grade: p.grade
+                    }),
+                    cache: 'no-store'
+                });
+            } catch (err) {
+                console.warn('Sync compte joueur impossible.', err);
+            }
         }
 
         function deletePlayer(id) {

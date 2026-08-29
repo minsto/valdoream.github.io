@@ -1,0 +1,253 @@
+﻿<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Valdoream | Portail Joueur</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Montserrat:wght@700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+    <header class="navbar">
+        <div class="logo" onclick="location.href='../'"><span class="logo-accent">VALD</span>OREAM</div>
+        <ul class="nav-links">
+            <li><a href="../">Accueil</a></li>
+            <li><a href="../#boutique" onclick="location.href='../';">Boutique</a></li>
+            <li><a href="./" class="active">Mon portail</a></li>
+        </ul>
+        <div class="nav-actions">
+            <button class="btn-icon" id="btn-logout" style="display:none;" onclick="logout()">Deconnexion</button>
+            <a class="btn-secondary" style="padding:8px 14px; text-decoration:none;" href="../">Retour au site</a>
+        </div>
+    </header>
+
+    <main class="main-container portal-page">
+        <div id="portal-alert" class="portal-alert" style="display:none;"></div>
+
+        <!-- NON CONNECTE -->
+        <section id="portal-guest" class="portal-card" style="display:none;">
+            <h1>Portail Joueur</h1>
+            <p class="portal-lead">Connecte-toi pour gerer ton profil, voir ton grade, tes achats et ton statut sur le serveur Valdoream.</p>
+            <div class="oauth-buttons">
+                <a class="oauth-btn oauth-google" id="btn-google" href="/api/auth/google">Continuer avec Google</a>
+                <a class="oauth-btn oauth-microsoft" id="btn-microsoft" href="/api/auth/microsoft">Continuer avec Hotmail / Microsoft</a>
+            </div>
+            <p id="oauth-hint" class="portal-hint"></p>
+        </section>
+
+        <!-- CONNECTE -->
+        <section id="portal-user" style="display:none;">
+            <div class="portal-grid">
+                <aside class="portal-card portal-profile">
+                    <div class="portal-skin-wrap">
+                        <img id="skin-body" class="portal-skin" alt="Skin Minecraft" src="">
+                        <img id="skin-avatar" class="portal-avatar" alt="Avatar" src="">
+                    </div>
+                    <h2 id="profile-name">Joueur</h2>
+                    <p id="profile-email" class="portal-muted"></p>
+                    <div id="ban-badge" class="status-pill" data-tone="ok">Compte actif</div>
+                    <div class="portal-meta">
+                        <div><span>Grade</span><b id="profile-grade">Joueur</b></div>
+                        <div><span>Minecraft</span><b id="profile-mc">—</b></div>
+                        <div><span>Discord</span><b id="profile-discord">—</b></div>
+                        <div><span>Compte</span><b id="profile-provider">—</b></div>
+                    </div>
+                </aside>
+
+                <div class="portal-main">
+                    <div class="portal-card">
+                        <h3>Mon profil</h3>
+                        <p class="portal-hint">Le pseudo Minecraft doit etre exact pour recevoir tes achats en jeu. Le skin se charge automatiquement.</p>
+                        <form id="profile-form" onsubmit="saveProfile(event)">
+                            <div class="form-group">
+                                <label>Pseudo Minecraft</label>
+                                <input type="text" id="input-mc" maxlength="16" pattern="[a-zA-Z0-9_]{3,16}" placeholder="Ex: DarkSlayer99" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Pseudo Discord</label>
+                                <input type="text" id="input-discord" maxlength="32" placeholder="Ex: joueur ou Joueur#1234">
+                            </div>
+                            <button type="submit" class="btn-primary" style="background: var(--admin-color);">Enregistrer le profil</button>
+                            <p id="profile-save-msg" class="portal-hint"></p>
+                        </form>
+                    </div>
+
+                    <div class="portal-card">
+                        <h3>Mes achats</h3>
+                        <div id="purchases-empty" class="portal-hint">Aucun achat pour le moment. Va dans la boutique une fois ton pseudo renseigne.</div>
+                        <table class="admin-table" id="purchases-table" style="display:none;">
+                            <thead>
+                                <tr><th>Article</th><th>Prix</th><th>Date</th></tr>
+                            </thead>
+                            <tbody id="purchases-body"></tbody>
+                        </table>
+                        <p style="margin-top:16px;">
+                            <a class="btn-primary" style="display:inline-block; text-decoration:none;" href="../">Aller a la boutique</a>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        let currentUser = null;
+
+        function esc(value) {
+            return String(value ?? '').replace(/[&<>"']/g, c => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            })[c]);
+        }
+
+        function formatPrice(value) {
+            return Number(value).toFixed(2).replace('.', ',') + ' €';
+        }
+
+        function showAlert(text, tone) {
+            const el = document.getElementById('portal-alert');
+            el.style.display = text ? 'block' : 'none';
+            el.textContent = text || '';
+            el.dataset.tone = tone || 'warn';
+        }
+
+        async function loadProviders() {
+            try {
+                const res = await fetch('/api/auth/providers', { cache: 'no-store' });
+                const data = await res.json();
+                const hint = document.getElementById('oauth-hint');
+                if (!data.google && !data.microsoft) {
+                    hint.textContent = 'OAuth pas encore configure sur Cloudflare (GOOGLE_CLIENT_ID / MICROSOFT_CLIENT_ID). Voir le README.';
+                    document.getElementById('btn-google').style.opacity = '0.4';
+                    document.getElementById('btn-microsoft').style.opacity = '0.4';
+                } else {
+                    if (!data.google) document.getElementById('btn-google').style.display = 'none';
+                    if (!data.microsoft) document.getElementById('btn-microsoft').style.display = 'none';
+                }
+            } catch {
+                document.getElementById('oauth-hint').textContent = 'Impossible de verifier les connexions OAuth.';
+            }
+        }
+
+        function renderUser(user) {
+            currentUser = user;
+            document.getElementById('portal-guest').style.display = 'none';
+            document.getElementById('portal-user').style.display = 'block';
+            document.getElementById('btn-logout').style.display = 'inline-flex';
+
+            document.getElementById('profile-name').textContent = user.name || 'Joueur';
+            document.getElementById('profile-email').textContent = user.email || '';
+            document.getElementById('profile-grade').textContent = user.grade || 'Joueur';
+            document.getElementById('profile-mc').textContent = user.minecraftPseudo || 'Non renseigne';
+            document.getElementById('profile-discord').textContent = user.discordPseudo || 'Non renseigne';
+            document.getElementById('profile-provider').textContent =
+                user.provider === 'google' ? 'Google' : user.provider === 'microsoft' ? 'Microsoft' : (user.provider || '—');
+
+            const ban = document.getElementById('ban-badge');
+            if (user.banned) {
+                ban.textContent = 'BANNI' + (user.banReason ? ' — ' + user.banReason : '');
+                ban.dataset.tone = 'warn';
+            } else {
+                ban.textContent = 'Compte actif';
+                ban.dataset.tone = 'ok';
+            }
+
+            document.getElementById('input-mc').value = user.minecraftPseudo || '';
+            document.getElementById('input-discord').value = user.discordPseudo || '';
+
+            const avatar = document.getElementById('skin-avatar');
+            const body = document.getElementById('skin-body');
+            if (user.skin && user.skin.body) {
+                body.src = user.skin.body;
+                body.style.display = 'block';
+                avatar.src = user.skin.avatar;
+                avatar.style.display = 'block';
+            } else if (user.picture) {
+                body.style.display = 'none';
+                avatar.src = user.picture;
+                avatar.style.display = 'block';
+            } else {
+                body.style.display = 'none';
+                avatar.style.display = 'none';
+            }
+
+            const purchases = user.purchases || [];
+            const empty = document.getElementById('purchases-empty');
+            const table = document.getElementById('purchases-table');
+            const tbody = document.getElementById('purchases-body');
+            if (!purchases.length) {
+                empty.style.display = 'block';
+                table.style.display = 'none';
+            } else {
+                empty.style.display = 'none';
+                table.style.display = 'table';
+                tbody.innerHTML = purchases.map(p => `
+                    <tr>
+                        <td><b>${esc(p.item)}</b></td>
+                        <td>${formatPrice(p.price)}</td>
+                        <td>${esc(new Date(p.date).toLocaleString('fr-FR'))}</td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        async function loadSession() {
+            const params = new URLSearchParams(location.search);
+            if (params.get('error')) showAlert(params.get('error'), 'warn');
+            if (params.get('setup') === '1') showAlert('Compte cree. Renseigne ton pseudo Minecraft pour recevoir tes achats en jeu.', 'ok');
+
+            await loadProviders();
+
+            try {
+                const res = await fetch('/api/auth/me', { cache: 'no-store', credentials: 'same-origin' });
+                const data = await res.json();
+                if (data.authenticated && data.user) {
+                    renderUser(data.user);
+                } else {
+                    document.getElementById('portal-guest').style.display = 'block';
+                    document.getElementById('portal-user').style.display = 'none';
+                }
+            } catch (err) {
+                showAlert('Impossible de charger la session : ' + err.message, 'warn');
+                document.getElementById('portal-guest').style.display = 'block';
+            }
+        }
+
+        async function saveProfile(e) {
+            e.preventDefault();
+            const msg = document.getElementById('profile-save-msg');
+            msg.textContent = 'Enregistrement...';
+
+            try {
+                const res = await fetch('/api/auth/profile', {
+                    method: 'PUT',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        minecraftPseudo: document.getElementById('input-mc').value.trim(),
+                        discordPseudo: document.getElementById('input-discord').value.trim()
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok || !data.ok) {
+                    msg.textContent = data.error || 'Erreur';
+                    return;
+                }
+                msg.textContent = 'Profil enregistre.';
+                renderUser(data.user);
+                showAlert('', 'ok');
+            } catch (err) {
+                msg.textContent = err.message;
+            }
+        }
+
+        async function logout() {
+            await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+            location.href = './';
+        }
+
+        window.addEventListener('DOMContentLoaded', loadSession);
+    </script>
+</body>
+</html>

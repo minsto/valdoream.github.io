@@ -20,7 +20,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-HTML_FILES = ["index.html", "admin/index.html"]
+HTML_FILES = ["index.html", "admin/index.html", "portal/index.html"]
 
 # Le code des Functions ne recoit pas de BOM : il passe par le bundler de
 # Cloudflare, autant ne rien y ajouter. On se contente de verifier son encodage.

@@ -61,9 +61,46 @@ Le contenu modifié dans le panel part dans **Workers KV**, la base de données 
 | --- | --- | --- |
 | `/api/content` | `GET` | tout le monde, en lecture seule |
 | `/admin/api/content` | `GET`, `PUT`, `DELETE` | seulement avec le mot de passe du panel |
-| `/api/shop/checkout` | `POST` | achat boutique (pseudo + panier) |
+| `/api/shop/checkout` | `POST` | achat boutique (compte connecte) |
+| `/api/auth/*` | OAuth | Google / Microsoft + profil joueur |
 | `/api/minecraft/queue` | `GET`, `POST` | le serveur Minecraft (cle `SERVER_API_KEY`) |
 | `/admin/api/minecraft/command` | `POST` | console admin (mot de passe panel) |
+| `/admin/api/players/sync` | `POST` | sync ban/grade vers compte inscrit |
+
+## Connexion joueurs (Google / Hotmail)
+
+Le portail est sur **`/portal/`**. Les joueurs se connectent avec Google ou Microsoft, puis renseignent leur **pseudo Minecraft** et **Discord**. Le skin Minecraft s'affiche automatiquement. Le portail montre aussi le **grade**, les **achats** et si le compte est **banni**.
+
+### Variables Cloudflare
+
+| Variable | Type | Role |
+| --- | --- | --- |
+| `SITE_URL` | Text | `https://valdoream.pages.dev` (ou ton domaine) |
+| `GOOGLE_CLIENT_ID` | Text | OAuth Google |
+| `GOOGLE_CLIENT_SECRET` | Secret | OAuth Google |
+| `MICROSOFT_CLIENT_ID` | Text | OAuth Microsoft / Hotmail |
+| `MICROSOFT_CLIENT_SECRET` | Secret | OAuth Microsoft |
+
+Redeploye apres chaque ajout.
+
+### Google
+
+1. [Google Cloud Console](https://console.cloud.google.com/) &#8594; APIs & Services &#8594; Credentials
+2. Create OAuth client ID (Web application)
+3. Authorized redirect URI :
+   `https://valdoream.pages.dev/api/auth/callback/google`
+4. Copie Client ID + Client Secret dans Cloudflare
+
+### Microsoft (Hotmail / Outlook)
+
+1. [Azure Portal](https://portal.azure.com/) &#8594; App registrations &#8594; New registration
+2. Redirect URI (Web) :
+   `https://valdoream.pages.dev/api/auth/callback/microsoft`
+3. Certificates & secrets &#8594; New client secret
+4. API permissions : `openid`, `profile`, `email`, `User.Read`
+5. Copie Application (client) ID + secret dans Cloudflare
+
+Sans ces variables, les boutons OAuth affichent une erreur de configuration (le reste du site continue de marcher).
 
 ## Livraison en jeu (NeoForge / Minecraft)
 

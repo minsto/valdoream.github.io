@@ -1,13 +1,14 @@
 /*
- * Checkout boutique : enregistre l'achat et place les commandes Minecraft en file
- * d'attente. Le serveur NeoForge (ou le script bridge) les execute ensuite.
- *
- * Pas de paiement Stripe ici : c'est la livraison en jeu. Brancher Stripe avant
- * la mise en production.
+ * Checkout boutique : utilise le compte connecte (pseudo Minecraft du profil).
+ * Enregistre les achats sur le profil joueur + file Minecraft.
  */
 
+import {
+    getSessionUser,
+    saveUser
+} from '../auth/_lib';
+
 const CONTENT_KEY = 'content';
-const PSEUDO_RE = /^[a-zA-Z0-9_]{3,16}$/;
 
 function json(payload, status = 200) {
     return new Response(JSON.stringify(payload), {
@@ -41,6 +42,10 @@ function productCommandList(product) {
     return [];
 }
 
+function isGradeProduct(product) {
+    return product.category === 'grades' || /^grade\b/i.test(product.name || '');
+}
+
 export async function onRequest({ request, env }) {
     if (request.method !== 'POST') {
         return json({ ok: false, error: 'Utilise POST avec un corps JSON.' }, 405);
@@ -49,8 +54,31 @@ export async function onRequest({ request, env }) {
     if (!env.CONTENT) {
         return json({
             ok: false,
-            error: 'Base de donnees non branche : binding KV CONTENT manquant.'
+            error: 'Base de donnees non branchee : binding KV CONTENT manquant.'
         }, 503);
+    }
+
+    const user = await getSessionUser(env, request);
+    if (!user) {
+        return json({
+            ok: false,
+            error: 'Connecte-toi avec Google ou Microsoft avant d acheter.'
+        }, 401);
+    }
+
+    if (user.banned) {
+        return json({
+            ok: false,
+            error: 'Compte banni' + (user.banReason ? ' : ' + user.banReason : '.')
+        }, 403);
+    }
+
+    const player = String(user.minecraftPseudo || '').trim();
+    if (!player) {
+        return json({
+            ok: false,
+            error: 'Ajoute ton pseudo Minecraft dans ton portail joueur avant d acheter.'
+        }, 400);
     }
 
     let body;
@@ -58,14 +86,6 @@ export async function onRequest({ request, env }) {
         body = await request.json();
     } catch {
         return json({ ok: false, error: 'JSON invalide.' }, 400);
-    }
-
-    const player = String(body?.player ?? '').trim();
-    if (!PSEUDO_RE.test(player)) {
-        return json({
-            ok: false,
-            error: 'Pseudo Minecraft invalide (3 a 16 caracteres : lettres, chiffres, _).'
-        }, 400);
     }
 
     const items = body?.items;
@@ -81,8 +101,10 @@ export async function onRequest({ request, env }) {
         }
 
         const now = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        const isoNow = new Date().toISOString();
         const queued = [];
         const missing = [];
+        const purchaseRows = [];
 
         for (const item of items) {
             const product = content.shop.find(p => p.id === item.id || p.name === item.name);
@@ -109,8 +131,9 @@ export async function onRequest({ request, env }) {
                     command,
                     source: 'shop',
                     itemName: product.name,
+                    userId: user.id,
                     status: 'pending',
-                    createdAt: new Date().toISOString()
+                    createdAt: isoNow
                 };
                 content.queue.unshift(entry);
                 queued.push(entry);
@@ -130,8 +153,21 @@ export async function onRequest({ request, env }) {
                 player,
                 item: product.name,
                 price: Number(product.price),
-                date: now
+                date: now,
+                userId: user.id
             });
+
+            purchaseRows.push({
+                id: Date.now() + Math.floor(Math.random() * 1000),
+                item: product.name,
+                price: Number(product.price),
+                date: isoNow,
+                category: product.category || 'items'
+            });
+
+            if (isGradeProduct(product)) {
+                user.grade = product.name.replace(/^Grade\s+/i, '') || product.name;
+            }
         }
 
         if (queued.length === 0) {
@@ -141,6 +177,9 @@ export async function onRequest({ request, env }) {
             }, 400);
         }
 
+        if (!Array.isArray(user.purchases)) user.purchases = [];
+        user.purchases = [...purchaseRows, ...user.purchases].slice(0, 200);
+        await saveUser(env, user);
         await env.CONTENT.put(CONTENT_KEY, JSON.stringify(content));
 
         return json({

@@ -22,7 +22,8 @@
             <li><a onclick="showPage('page-boutique')" class="nav-btn" data-target="page-boutique">Boutique</a></li>
         </ul>
         <div class="nav-actions">
-            <button class="btn-icon" id="btn-login" onclick="openModal('auth-modal')">&#128100; Connexion</button>
+            <button class="btn-icon" id="btn-login" onclick="openAuth()">&#128100; Connexion</button>
+            <a class="btn-icon" id="btn-portal" href="portal/" style="display:none; text-decoration:none;">Mon portail</a>
             <button class="btn-icon" id="btn-cart" onclick="openModal('cart-modal')">&#128722; Panier <span class="cart-count" id="cart-count">0</span></button>
         </div>
     </header>
@@ -255,7 +256,7 @@
     <footer style="text-align: center; padding: 40px; border-top: 1px solid rgba(255,42,75,0.15); margin-top: 60px; background: var(--bg-black);">
         <div class="logo" style="margin-bottom: 10px; font-size: 1.2rem;" onclick="showPage('page-accueil')"><span class="logo-accent">VALD</span>OREAM STUDIO</div>
         <p style="color: var(--text-gray); font-size: 0.85rem;">&copy; 2026 Valdoream Studio. Tous droits réservés. Non affilié à Mojang AB.</p>
-        <p style="margin-top: 12px;"><a href="admin/" style="color: rgba(158,158,167,0.5); font-size: 0.75rem; text-decoration: none;">Espace staff</a></p>
+        <p style="margin-top: 12px;"><a href="portal/" style="color: rgba(158,158,167,0.7); font-size: 0.8rem; text-decoration: none;">Portail joueur</a> · <a href="admin/" style="color: rgba(158,158,167,0.5); font-size: 0.75rem; text-decoration: none;">Espace staff</a></p>
     </footer>
 
     <!-- MODAL AUTHENTIFICATION JOUEUR -->
@@ -263,16 +264,15 @@
         <div class="modal-content">
             <button class="modal-close" onclick="closeModal('auth-modal')">&times;</button>
             <h3 style="margin-bottom: 15px; text-align: center;">Connexion Joueur</h3>
-            <p style="color: var(--text-gray); font-size: 0.85rem; text-align: center; margin-bottom: 15px;">
-                Entrez votre <b>pseudo Minecraft exact</b> pour recevoir vos achats en jeu.
+            <p style="color: var(--text-gray); font-size: 0.85rem; text-align: center; margin-bottom: 18px;">
+                Connecte-toi avec Google ou Hotmail / Microsoft, puis renseigne ton pseudo Minecraft dans ton portail.
             </p>
-            <div class="form-group">
-                <input type="text" id="player-pseudo-input" maxlength="16" placeholder="Ex: DarkSlayer99" pattern="[a-zA-Z0-9_]{3,16}" required
-                    style="width: 100%; padding: 12px; background: var(--bg-dark-2); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 6px;">
+            <div class="oauth-buttons">
+                <a class="oauth-btn oauth-google" href="/api/auth/google">Continuer avec Google</a>
+                <a class="oauth-btn oauth-microsoft" href="/api/auth/microsoft">Continuer avec Hotmail / Microsoft</a>
             </div>
-            <button class="btn-primary" style="width: 100%;" onclick="playerLogin()">Confirmer mon pseudo</button>
-            <p style="color: var(--text-gray); font-size: 0.75rem; text-align: center; margin-top: 12px;">
-                3 a 16 caracteres : lettres, chiffres et underscore uniquement.
+            <p style="color: var(--text-gray); font-size: 0.75rem; text-align: center; margin-top: 16px;">
+                Deja inscrit ? <a href="portal/" style="color: var(--accent-orange);">Ouvrir mon portail</a>
             </p>
         </div>
     </div>
@@ -295,9 +295,34 @@
     <script>
         const store = loadStore();
         let cart = [];
-        let playerPseudo = null;
+        let currentUser = null;
 
-        const PSEUDO_RE = /^[a-zA-Z0-9_]{3,16}$/;
+        function openAuth() {
+            if (currentUser) {
+                location.href = 'portal/';
+                return;
+            }
+            openModal('auth-modal');
+        }
+
+        async function refreshAuth() {
+            try {
+                const res = await fetch('/api/auth/me', { cache: 'no-store', credentials: 'same-origin' });
+                const data = await res.json();
+                if (data.authenticated && data.user) {
+                    currentUser = data.user;
+                    const label = data.user.minecraftPseudo || data.user.name || 'Mon compte';
+                    document.getElementById('btn-login').innerHTML = '&#128100; ' + esc(label);
+                    document.getElementById('btn-login').style.borderColor = data.user.banned ? '#e74c3c' : '#2bcf5e';
+                    document.getElementById('btn-portal').style.display = 'inline-flex';
+                } else {
+                    currentUser = null;
+                }
+            } catch {
+                currentUser = null;
+            }
+        }
+
         function showPage(pageId) {
             document.querySelectorAll('.page-section').forEach(sec => sec.classList.remove('active'));
             document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
@@ -405,18 +430,27 @@
 
         async function checkoutCart() {
             if (cart.length === 0) return alert('Votre panier est vide.');
-            if (!playerPseudo) {
-                alert('Indiquez votre pseudo Minecraft avant de payer.');
+            if (!currentUser) {
+                alert('Connecte-toi avec Google ou Microsoft avant d acheter.');
                 openModal('auth-modal');
+                return;
+            }
+            if (currentUser.banned) {
+                alert('Ton compte est banni. Tu ne peux pas acheter.');
+                return;
+            }
+            if (!currentUser.minecraftPseudo) {
+                alert('Renseigne ton pseudo Minecraft dans ton portail avant d acheter.');
+                location.href = 'portal/?setup=1';
                 return;
             }
 
             try {
                 const res = await fetch('/api/shop/checkout', {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        player: playerPseudo,
                         items: cart.map(i => ({ id: i.id, name: i.name, price: i.price }))
                     }),
                     cache: 'no-store'
@@ -426,12 +460,14 @@
 
                 if (!res.ok || !payload.ok) {
                     alert(payload.error || 'Impossible d envoyer la commande au serveur.');
+                    if (res.status === 401) openModal('auth-modal');
                     return;
                 }
 
                 cart = [];
                 updateCartUI();
                 closeModal('cart-modal');
+                await refreshAuth();
 
                 let msg = 'Merci ! ' + (payload.message || 'Vos articles arrivent sur le serveur Valdoream sous quelques secondes.');
                 if (payload.missing && payload.missing.length) {
@@ -454,27 +490,13 @@
         function openModal(id) { document.getElementById(id).classList.add('active'); }
         function closeModal(id) { document.getElementById(id).classList.remove('active'); }
 
-        function playerLogin() {
-            const input = document.getElementById('player-pseudo-input');
-            const pseudo = (input?.value || '').trim();
-            if (!PSEUDO_RE.test(pseudo)) {
-                alert('Pseudo invalide : 3 a 16 caracteres (lettres, chiffres, _).');
-                return;
-            }
-            playerPseudo = pseudo;
-            document.getElementById('btn-login').innerHTML = '&#128100; ' + esc(pseudo);
-            document.getElementById('btn-login').style.borderColor = '#2bcf5e';
-            closeModal('auth-modal');
-        }
-
         // --- INITIALISATION ---
         window.addEventListener('DOMContentLoaded', async () => {
-            // Affichage immédiat depuis le cache local, sans attendre le réseau.
             renderHomeContent();
             renderPublicShop();
             updateCartUI();
+            await refreshAuth();
 
-            // Puis on redessine avec le contenu publié par l'admin.
             await syncStoreFromServer(store);
             renderHomeContent();
             renderPublicShop();
