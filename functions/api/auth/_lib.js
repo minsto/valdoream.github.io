@@ -241,6 +241,37 @@ export async function loginPasswordUser(env, { email, password }) {
     return user;
 }
 
+export async function verifyBotProtection(env, request, body) {
+    // Prefer Cloudflare Turnstile when configured (real anti-bot).
+    if (env.TURNSTILE_SECRET_KEY) {
+        const token = body?.turnstileToken;
+        if (!token) return { ok: false, error: 'Captcha Turnstile manquant. Recharge la page.' };
+
+        const ip = request.headers.get('CF-Connecting-IP') || '';
+        const form = new URLSearchParams();
+        form.set('secret', env.TURNSTILE_SECRET_KEY);
+        form.set('response', token);
+        if (ip) form.set('remoteip', ip);
+
+        const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+            method: 'POST',
+            body: form
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!data.success) {
+            return { ok: false, error: 'Captcha refuse. Es-tu un humain ? Reessaie.' };
+        }
+        return { ok: true, mode: 'turnstile' };
+    }
+
+    // Fallback: simple math captcha (weaker, but works without setup).
+    const captchaOk = await consumeCaptcha(env, body?.captchaId, body?.captchaAnswer);
+    if (!captchaOk) {
+        return { ok: false, error: 'Captcha incorrect ou expire. Reessaie.' };
+    }
+    return { ok: true, mode: 'math' };
+}
+
 export async function resolveMinecraftUuid(pseudo) {
     try {
         const res = await fetch('https://playerdb.co/api/player/minecraft/' + encodeURIComponent(pseudo), {

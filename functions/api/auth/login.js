@@ -1,10 +1,10 @@
 import {
-    consumeCaptcha,
     createSession,
     json,
     loginPasswordUser,
     publicUser,
-    sessionCookieHeader
+    sessionCookieHeader,
+    verifyBotProtection
 } from './_lib';
 
 export async function onRequest({ request, env }) {
@@ -18,10 +18,8 @@ export async function onRequest({ request, env }) {
         return json({ ok: false, error: 'JSON invalide.' }, 400);
     }
 
-    const captchaOk = await consumeCaptcha(env, body.captchaId, body.captchaAnswer);
-    if (!captchaOk) {
-        return json({ ok: false, error: 'Captcha incorrect ou expire. Reessaie.' }, 400);
-    }
+    const bot = await verifyBotProtection(env, request, body);
+    if (!bot.ok) return json({ ok: false, error: bot.error }, 400);
 
     try {
         const user = await loginPasswordUser(env, {

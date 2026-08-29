@@ -44,9 +44,13 @@
                     <label>Mot de passe</label>
                     <input type="password" id="login-password" required minlength="8" placeholder="Au moins 8 caracteres">
                 </div>
-                <div class="form-group">
-                    <label id="login-captcha-label">Captcha</label>
-                    <input type="text" id="login-captcha" required placeholder="Ta reponse">
+                <div class="form-group" id="login-math-wrap">
+                    <label id="login-captcha-label">Captcha anti-bot</label>
+                    <input type="text" id="login-captcha" placeholder="Ta reponse">
+                </div>
+                <div class="form-group" id="login-turnstile-wrap" style="display:none;">
+                    <label>Verification anti-bot</label>
+                    <div id="login-turnstile"></div>
                 </div>
                 <button type="submit" class="btn-primary" style="width:100%; background: var(--admin-color);">Se connecter</button>
                 <p id="login-msg" class="portal-hint"></p>
@@ -61,9 +65,13 @@
                     <label>Mot de passe</label>
                     <input type="password" id="register-password" required minlength="8" placeholder="Au moins 8 caracteres">
                 </div>
-                <div class="form-group">
-                    <label id="register-captcha-label">Captcha</label>
-                    <input type="text" id="register-captcha" required placeholder="Ta reponse">
+                <div class="form-group" id="register-math-wrap">
+                    <label id="register-captcha-label">Captcha anti-bot</label>
+                    <input type="text" id="register-captcha" placeholder="Ta reponse">
+                </div>
+                <div class="form-group" id="register-turnstile-wrap" style="display:none;">
+                    <label>Verification anti-bot</label>
+                    <div id="register-turnstile"></div>
                 </div>
                 <button type="submit" class="btn-primary" style="width:100%; background: var(--admin-color);">Creer mon compte</button>
                 <p id="register-msg" class="portal-hint"></p>
@@ -124,10 +132,17 @@
         </section>
     </main>
 
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
     <script>
         let currentUser = null;
+        let captchaMode = 'math';
+        let turnstileSiteKey = null;
         let loginCaptchaId = null;
         let registerCaptchaId = null;
+        let loginTurnstileWidget = null;
+        let registerTurnstileWidget = null;
+        let loginTurnstileToken = null;
+        let registerTurnstileToken = null;
 
         function esc(value) {
             return String(value ?? '').replace(/[&<>"']/g, c => ({
@@ -151,8 +166,53 @@
             document.getElementById('tab-register').classList.toggle('active', which === 'register');
             document.getElementById('form-login').style.display = which === 'login' ? 'block' : 'none';
             document.getElementById('form-register').style.display = which === 'register' ? 'block' : 'none';
-            if (which === 'login') loadCaptcha('login');
-            else loadCaptcha('register');
+            loadCaptcha(which);
+        }
+
+        function ensureTurnstileScript(cb) {
+            if (window.turnstile) return cb();
+            const wait = setInterval(() => {
+                if (window.turnstile) {
+                    clearInterval(wait);
+                    cb();
+                }
+            }, 100);
+            setTimeout(() => clearInterval(wait), 8000);
+        }
+
+        function renderTurnstile(kind) {
+            ensureTurnstileScript(() => {
+                const hostId = kind === 'login' ? 'login-turnstile' : 'register-turnstile';
+                const host = document.getElementById(hostId);
+                if (!host || !turnstileSiteKey || !window.turnstile) return;
+
+                if (kind === 'login' && loginTurnstileWidget != null) {
+                    turnstile.reset(loginTurnstileWidget);
+                    loginTurnstileToken = null;
+                    return;
+                }
+                if (kind === 'register' && registerTurnstileWidget != null) {
+                    turnstile.reset(registerTurnstileWidget);
+                    registerTurnstileToken = null;
+                    return;
+                }
+
+                const widgetId = turnstile.render(host, {
+                    sitekey: turnstileSiteKey,
+                    theme: 'dark',
+                    callback: (token) => {
+                        if (kind === 'login') loginTurnstileToken = token;
+                        else registerTurnstileToken = token;
+                    },
+                    'expired-callback': () => {
+                        if (kind === 'login') loginTurnstileToken = null;
+                        else registerTurnstileToken = null;
+                    }
+                });
+
+                if (kind === 'login') loginTurnstileWidget = widgetId;
+                else registerTurnstileWidget = widgetId;
+            });
         }
 
         async function loadCaptcha(kind) {
@@ -160,18 +220,50 @@
                 const res = await fetch('/api/auth/captcha', { cache: 'no-store' });
                 const data = await res.json();
                 if (!data.ok) return;
+
+                captchaMode = data.mode || 'math';
+
+                if (captchaMode === 'turnstile') {
+                    turnstileSiteKey = data.siteKey;
+                    document.getElementById('login-math-wrap').style.display = 'none';
+                    document.getElementById('register-math-wrap').style.display = 'none';
+                    document.getElementById('login-turnstile-wrap').style.display = 'block';
+                    document.getElementById('register-turnstile-wrap').style.display = 'block';
+                    renderTurnstile(kind);
+                    return;
+                }
+
+                document.getElementById('login-math-wrap').style.display = 'block';
+                document.getElementById('register-math-wrap').style.display = 'block';
+                document.getElementById('login-turnstile-wrap').style.display = 'none';
+                document.getElementById('register-turnstile-wrap').style.display = 'none';
+
                 if (kind === 'login') {
                     loginCaptchaId = data.id;
-                    document.getElementById('login-captcha-label').textContent = 'Captcha : ' + data.question;
+                    document.getElementById('login-captcha-label').textContent = 'Captcha anti-bot : ' + data.question;
                     document.getElementById('login-captcha').value = '';
+                    document.getElementById('login-captcha').required = true;
                 } else {
                     registerCaptchaId = data.id;
-                    document.getElementById('register-captcha-label').textContent = 'Captcha : ' + data.question;
+                    document.getElementById('register-captcha-label').textContent = 'Captcha anti-bot : ' + data.question;
                     document.getElementById('register-captcha').value = '';
+                    document.getElementById('register-captcha').required = true;
                 }
             } catch (err) {
                 showAlert('Captcha indisponible : ' + err.message, 'warn');
             }
+        }
+
+        function captchaPayload(kind) {
+            if (captchaMode === 'turnstile') {
+                return {
+                    turnstileToken: kind === 'login' ? loginTurnstileToken : registerTurnstileToken
+                };
+            }
+            return {
+                captchaId: kind === 'login' ? loginCaptchaId : registerCaptchaId,
+                captchaAnswer: document.getElementById(kind === 'login' ? 'login-captcha' : 'register-captcha').value.trim()
+            };
         }
 
         async function submitLogin(e) {
@@ -186,8 +278,7 @@
                     body: JSON.stringify({
                         email: document.getElementById('login-email').value.trim(),
                         password: document.getElementById('login-password').value,
-                        captchaId: loginCaptchaId,
-                        captchaAnswer: document.getElementById('login-captcha').value.trim()
+                        ...captchaPayload('login')
                     })
                 });
                 const data = await res.json();
@@ -215,8 +306,7 @@
                     body: JSON.stringify({
                         email: document.getElementById('register-email').value.trim(),
                         password: document.getElementById('register-password').value,
-                        captchaId: registerCaptchaId,
-                        captchaAnswer: document.getElementById('register-captcha').value.trim()
+                        ...captchaPayload('register')
                     })
                 });
                 const data = await res.json();
