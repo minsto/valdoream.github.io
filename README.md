@@ -80,7 +80,21 @@ Pour l'instant :
 Google / Hotmail arriveront plus tard, quand le vrai domaine du site sera en place.
 Les routes OAuth existent deja dans le code, mais elles sont desactivees dans l'interface.
 
-Le captcha est un calcul simple genere par le serveur (aucune cle Cloudflare a configurer).
+Le captcha anti-bot utilise **Cloudflare Turnstile** (recommande) quand il est configure.
+Sinon, un calcul simple sert de secours (moins fort contre les bots).
+
+### Activer Turnstile (anti-bot fort)
+
+1. Cloudflare dashboard → **Turnstile**
+2. **Add widget**
+3. Nom : `Valdoream`
+4. Domains : `valdoream.pages.dev`
+5. Widget Mode : **Managed**
+6. Copie **Site Key** et **Secret Key**
+7. Projet Pages **valdoream** → **Settings** → **Environment variables** :
+   - `TURNSTILE_SITE_KEY` = Site Key (Text)
+   - `TURNSTILE_SECRET_KEY` = Secret Key (Secret)
+8. **Deployments** → **Retry deployment**
 
 ## Livraison en jeu (NeoForge / Minecraft)
 
