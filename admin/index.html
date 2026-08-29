@@ -92,14 +92,13 @@
                 <div id="dash-players" class="admin-tab-content" style="display: none;">
                     <h3 style="margin-bottom: 20px;">Comptes inscrits (portail)</h3>
                     <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; align-items: center;">
-                        <input type="text" id="player-search-input" onkeyup="renderPlayersTable()" placeholder="Rechercher email, Minecraft, Discord..." style="flex-grow:1; padding: 10px; background: var(--bg-dark-2); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 6px;">
+                        <input type="text" id="player-search-input" onkeyup="renderPlayersTable()" placeholder="Rechercher Minecraft, Discord, grade..." style="flex-grow:1; padding: 10px; background: var(--bg-dark-2); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 6px;">
                         <button class="btn-secondary" style="padding: 8px 14px;" onclick="loadRegisteredAccounts()">Actualiser</button>
                     </div>
                     <p id="accounts-load-msg" style="color: var(--text-gray); font-size: 0.85rem; margin-bottom: 12px;"></p>
                     <table class="admin-table">
                         <thead>
                             <tr>
-                                <th>Email</th>
                                 <th>Minecraft</th>
                                 <th>Discord</th>
                                 <th>Grade</th>
@@ -424,7 +423,7 @@
         function renderPlayersTable() {
             const search = (document.getElementById('player-search-input')?.value || '').toLowerCase();
             const rows = registeredAccounts.filter(p => {
-                const blob = [p.email, p.minecraftPseudo, p.discordPseudo, p.grade, p.name]
+                const blob = [p.minecraftPseudo, p.discordPseudo, p.grade, p.name]
                     .map(x => String(x || '').toLowerCase())
                     .join(' ');
                 return blob.includes(search);
@@ -434,7 +433,7 @@
             if (!tbody) return;
 
             if (!rows.length) {
-                tbody.innerHTML = '<tr><td colspan="7" style="color:#888;">Aucun compte a afficher.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" style="color:#888;">Aucun compte a afficher.</td></tr>';
                 return;
             }
 
@@ -449,8 +448,7 @@
                     : '';
                 return `
                     <tr>
-                        <td><b>${esc(p.email)}</b></td>
-                        <td>${avatar}${esc(mc)}</td>
+                        <td>${avatar}<b>${esc(mc)}</b></td>
                         <td>${esc(discord)}</td>
                         <td>${esc(p.grade || 'Joueur')}</td>
                         <td><span style="color: ${statusColor}; font-weight: bold;">${esc(statusLabel)}</span></td>
@@ -483,7 +481,7 @@
                     alert(data.error || 'Echec du ban');
                     return;
                 }
-                addConsoleLog(`[MODERATION]: Compte ${p.email} &#8594; ${nextBanned ? 'BANNI' : 'actif'}`);
+                addConsoleLog(`[MODERATION]: ${esc(p.minecraftPseudo || p.name || p.id)} &#8594; ${nextBanned ? 'BANNI' : 'actif'}`);
                 await loadRegisteredAccounts();
             } catch (err) {
                 alert(err.message);

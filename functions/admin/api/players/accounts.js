@@ -15,7 +15,7 @@ async function listAccountIds(env) {
     do {
         const page = await env.CONTENT.list({ prefix: 'user:', cursor, limit: 1000 });
         for (const key of page.keys || []) {
-            // user:{id} seulement — ignore user_by_email:
+            // user:{id} seulement ï¿½ ignore user_by_email:
             const name = key.name || '';
             if (/^user:[a-f0-9]+$/i.test(name)) {
                 ids.push(name.slice('user:'.length));
@@ -46,10 +46,13 @@ export async function onRequest({ request, env }) {
             return json({
                 ok: true,
                 count: users.length,
-                accounts: users.map(u => ({
-                    ...publicUser(u),
-                    purchaseCount: (u.purchases || []).length
-                }))
+                accounts: users.map(u => {
+                    const { email, ...safe } = publicUser(u);
+                    return {
+                        ...safe,
+                        purchaseCount: (u.purchases || []).length
+                    };
+                })
             });
         } catch (err) {
             return json({ ok: false, error: String(err) }, 502);
@@ -81,7 +84,8 @@ export async function onRequest({ request, env }) {
         }
 
         await saveUser(env, user);
-        return json({ ok: true, account: publicUser(user) });
+        const { email, ...safe } = publicUser(user);
+        return json({ ok: true, account: safe });
     }
 
     return json({ ok: false, error: 'GET ou POST uniquement.' }, 405);
