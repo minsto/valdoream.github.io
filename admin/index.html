@@ -88,16 +88,25 @@
                     </table>
                 </div>
 
-                <!-- TAB 3 : JOUEURS -->
+                <!-- TAB 3 : JOUEURS INSCRITS -->
                 <div id="dash-players" class="admin-tab-content" style="display: none;">
-                    <h3 style="margin-bottom: 20px;">Gestion de la Communauté</h3>
-                    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-                        <input type="text" id="player-search-input" onkeyup="renderPlayersTable()" placeholder="Rechercher un pseudo..." style="flex-grow:1; padding: 10px; background: var(--bg-dark-2); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 6px;">
-                        <button class="btn-primary" style="background: var(--admin-color);" onclick="addPlayer()">+ Ajouter Joueur</button>
+                    <h3 style="margin-bottom: 20px;">Comptes inscrits (portail)</h3>
+                    <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; align-items: center;">
+                        <input type="text" id="player-search-input" onkeyup="renderPlayersTable()" placeholder="Rechercher email, Minecraft, Discord..." style="flex-grow:1; padding: 10px; background: var(--bg-dark-2); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 6px;">
+                        <button class="btn-secondary" style="padding: 8px 14px;" onclick="loadRegisteredAccounts()">Actualiser</button>
                     </div>
+                    <p id="accounts-load-msg" style="color: var(--text-gray); font-size: 0.85rem; margin-bottom: 12px;"></p>
                     <table class="admin-table">
                         <thead>
-                            <tr><th>Pseudo</th><th>Grade</th><th>Statut</th><th>Actions</th></tr>
+                            <tr>
+                                <th>Email</th>
+                                <th>Minecraft</th>
+                                <th>Discord</th>
+                                <th>Grade</th>
+                                <th>Statut</th>
+                                <th>Achats</th>
+                                <th>Actions</th>
+                            </tr>
                         </thead>
                         <tbody id="admin-players-table"></tbody>
                     </table>
@@ -315,11 +324,13 @@
                 clearInterval(livePollTimer);
                 livePollTimer = null;
             }
+
+            if (tabId === 'dash-players') loadRegisteredAccounts();
         }
 
         // --- VUE D'ENSEMBLE ---
         function updateAdminStats() {
-            document.getElementById('stat-total-players').innerText = store.players.length;
+            document.getElementById('stat-total-players').innerText = registeredAccounts.length;
             const totalRev = store.sales.reduce((acc, curr) => acc + Number(curr.price), 0);
             document.getElementById('stat-total-revenue').innerText = formatPrice(totalRev);
             document.getElementById('stat-total-items').innerText = store.shop.length;
@@ -382,67 +393,101 @@
         function deleteNews(id) { store.news = store.news.filter(x => x.id !== id); persist(); renderPostsTable(); }
         function deletePost(id) { store.posts = store.posts.filter(x => x.id !== id); persist(); renderPostsTable(); }
 
-        // --- JOUEURS ---
-        function renderPlayersTable() {
-            const search = document.getElementById('player-search-input').value.toLowerCase();
+        let registeredAccounts = [];
 
-            document.getElementById('admin-players-table').innerHTML = store.players
-                .filter(p => p.pseudo.toLowerCase().includes(search))
-                .map(p => {
-                    const statusColor = p.status === 'En ligne' ? '#2bcf5e' : p.status === 'Banni' ? '#e74c3c' : 'gray';
-                    return `
-                        <tr>
-                            <td><b>${esc(p.pseudo)}</b></td>
-                            <td>${esc(p.grade)}</td>
-                            <td><span style="color: ${statusColor}; font-weight: bold;">${esc(p.status)}</span></td>
-                            <td>
-                                <button class="action-btn edit" onclick="toggleBanPlayer(${p.id})">${p.status === 'Banni' ? 'Débannir' : 'Bannir'}</button>
-                                <button class="action-btn delete" onclick="deletePlayer(${p.id})">Supprimer</button>
-                            </td>
-                        </tr>
-                    `;
-                }).join('');
+        // --- JOUEURS INSCRITS (vrais comptes portail) ---
+        async function loadRegisteredAccounts() {
+            const msg = document.getElementById('accounts-load-msg');
+            if (msg) msg.textContent = 'Chargement des comptes...';
+            try {
+                const res = await fetch('/admin/api/players/accounts', { cache: 'no-store' });
+                const data = await res.json();
+                if (!res.ok || !data.ok) {
+                    if (msg) msg.textContent = data.error || 'Impossible de charger les comptes.';
+                    registeredAccounts = [];
+                } else {
+                    registeredAccounts = data.accounts || [];
+                    if (msg) {
+                        msg.textContent = registeredAccounts.length
+                            ? registeredAccounts.length + ' compte(s) inscrit(s).'
+                            : 'Aucun compte inscrit pour le moment.';
+                    }
+                }
+            } catch (err) {
+                registeredAccounts = [];
+                if (msg) msg.textContent = 'Erreur : ' + err.message;
+            }
+            renderPlayersTable();
+            updateAdminStats();
         }
 
-        async function toggleBanPlayer(id) {
-            const p = store.players.find(x => x.id === id);
-            if (!p) return;
-            p.status = p.status === 'Banni' ? 'Hors ligne' : 'Banni';
-            persist();
-            addConsoleLog(`[MODERATION]: Le statut de ${p.pseudo} a ete modifie vers ${p.status}.`);
-            renderPlayersTable();
+        function renderPlayersTable() {
+            const search = (document.getElementById('player-search-input')?.value || '').toLowerCase();
+            const rows = registeredAccounts.filter(p => {
+                const blob = [p.email, p.minecraftPseudo, p.discordPseudo, p.grade, p.name]
+                    .map(x => String(x || '').toLowerCase())
+                    .join(' ');
+                return blob.includes(search);
+            });
 
+            const tbody = document.getElementById('admin-players-table');
+            if (!tbody) return;
+
+            if (!rows.length) {
+                tbody.innerHTML = '<tr><td colspan="7" style="color:#888;">Aucun compte a afficher.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = rows.map(p => {
+                const banned = Boolean(p.banned);
+                const statusLabel = banned ? ('Banni' + (p.banReason ? ' — ' + p.banReason : '')) : 'Actif';
+                const statusColor = banned ? '#e74c3c' : '#2bcf5e';
+                const mc = p.minecraftPseudo || '—';
+                const discord = p.discordPseudo || '—';
+                const avatar = p.skin?.avatar
+                    ? `<img src="${esc(p.skin.avatar)}" alt="" style="width:28px;height:28px;image-rendering:pixelated;border-radius:4px;vertical-align:middle;margin-right:8px;">`
+                    : '';
+                return `
+                    <tr>
+                        <td><b>${esc(p.email)}</b></td>
+                        <td>${avatar}${esc(mc)}</td>
+                        <td>${esc(discord)}</td>
+                        <td>${esc(p.grade || 'Joueur')}</td>
+                        <td><span style="color: ${statusColor}; font-weight: bold;">${esc(statusLabel)}</span></td>
+                        <td>${Number(p.purchaseCount || 0)}</td>
+                        <td>
+                            <button class="action-btn edit" onclick="toggleBanAccount('${esc(p.id)}')">${banned ? 'Debannir' : 'Bannir'}</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function toggleBanAccount(userId) {
+            const p = registeredAccounts.find(x => x.id === userId);
+            if (!p) return;
+            const nextBanned = !p.banned;
             try {
-                await fetch('/admin/api/players/sync', {
+                const res = await fetch('/admin/api/players/accounts', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        minecraftPseudo: p.pseudo,
-                        banned: p.status === 'Banni',
-                        banReason: p.status === 'Banni' ? 'Banni depuis le panel admin' : null,
-                        grade: p.grade
+                        userId,
+                        banned: nextBanned,
+                        banReason: nextBanned ? 'Banni depuis le panel admin' : null
                     }),
                     cache: 'no-store'
                 });
+                const data = await res.json();
+                if (!res.ok || !data.ok) {
+                    alert(data.error || 'Echec du ban');
+                    return;
+                }
+                addConsoleLog(`[MODERATION]: Compte ${p.email} &#8594; ${nextBanned ? 'BANNI' : 'actif'}`);
+                await loadRegisteredAccounts();
             } catch (err) {
-                console.warn('Sync compte joueur impossible.', err);
+                alert(err.message);
             }
-        }
-
-        function deletePlayer(id) {
-            store.players = store.players.filter(x => x.id !== id);
-            persist();
-            renderPlayersTable();
-            updateAdminStats();
-        }
-
-        function addPlayer() {
-            const pseudo = prompt('Entrez le pseudo du nouveau joueur :');
-            if (!pseudo) return;
-            store.players.push({ id: Date.now(), pseudo, grade: 'Joueur', status: 'Hors ligne' });
-            persist();
-            renderPlayersTable();
-            updateAdminStats();
         }
 
         // --- BOUTIQUE ---
@@ -684,11 +729,11 @@
 
         // --- INITIALISATION ---
         window.addEventListener('DOMContentLoaded', async () => {
-            // Premier rendu avec le cache local, pour ne pas attendre le réseau.
             renderEverything();
 
             const status = await syncStoreFromServer(store);
             renderEverything();
+            await loadRegisteredAccounts();
 
             if (status.source === 'server') {
                 setSyncStatus('Contenu en ligne chargé', 'ok');

@@ -22,8 +22,17 @@ export function json(payload, status = 200, extraHeaders = {}) {
     });
 }
 
+export function envGet(env, name) {
+    if (!env) return undefined;
+    if (env[name] != null && String(env[name]).trim() !== '') return String(env[name]).trim();
+    // Tolere un espace accidentel dans le nom de variable Cloudflare.
+    const spaced = name + ' ';
+    if (env[spaced] != null && String(env[spaced]).trim() !== '') return String(env[spaced]).trim();
+    return undefined;
+}
+
 export function siteUrl(env, request) {
-    if (env.SITE_URL) return String(env.SITE_URL).replace(/\/+$/, '');
+    if (envGet(env, 'SITE_URL')) return envGet(env, 'SITE_URL').replace(/\/+$/, '');
     try {
         return new URL(request.url).origin;
     } catch {
@@ -242,7 +251,9 @@ export async function loginPasswordUser(env, { email, password }) {
 }
 
 export async function verifyBotProtection(env, request, body) {
-    const turnstileReady = Boolean(env.TURNSTILE_SECRET_KEY && env.TURNSTILE_SITE_KEY);
+    const siteKey = envGet(env, 'TURNSTILE_SITE_KEY') || '';
+    const secretKey = envGet(env, 'TURNSTILE_SECRET_KEY') || '';
+    const turnstileReady = Boolean(siteKey && secretKey);
 
     // Prefer Cloudflare Turnstile when BOTH keys are configured.
     if (turnstileReady) {
@@ -256,7 +267,7 @@ export async function verifyBotProtection(env, request, body) {
 
         const ip = request.headers.get('CF-Connecting-IP') || '';
         const form = new URLSearchParams();
-        form.set('secret', env.TURNSTILE_SECRET_KEY);
+        form.set('secret', secretKey);
         form.set('response', token);
         if (ip) form.set('remoteip', ip);
 
