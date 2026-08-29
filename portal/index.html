@@ -256,13 +256,17 @@
 
         function captchaPayload(kind) {
             if (captchaMode === 'turnstile') {
-                return {
-                    turnstileToken: kind === 'login' ? loginTurnstileToken : registerTurnstileToken
-                };
+                const token = kind === 'login' ? loginTurnstileToken : registerTurnstileToken;
+                if (!token) {
+                    throw new Error('Coche / valide le captcha anti-bot avant de continuer.');
+                }
+                return { turnstileToken: token };
             }
+            const answer = document.getElementById(kind === 'login' ? 'login-captcha' : 'register-captcha').value.trim();
+            if (!answer) throw new Error('Reponds au captcha anti-bot.');
             return {
                 captchaId: kind === 'login' ? loginCaptchaId : registerCaptchaId,
-                captchaAnswer: document.getElementById(kind === 'login' ? 'login-captcha' : 'register-captcha').value.trim()
+                captchaAnswer: answer
             };
         }
 

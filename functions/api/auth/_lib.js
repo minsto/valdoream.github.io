@@ -242,10 +242,17 @@ export async function loginPasswordUser(env, { email, password }) {
 }
 
 export async function verifyBotProtection(env, request, body) {
-    // Prefer Cloudflare Turnstile when configured (real anti-bot).
-    if (env.TURNSTILE_SECRET_KEY) {
+    const turnstileReady = Boolean(env.TURNSTILE_SECRET_KEY && env.TURNSTILE_SITE_KEY);
+
+    // Prefer Cloudflare Turnstile when BOTH keys are configured.
+    if (turnstileReady) {
         const token = body?.turnstileToken;
-        if (!token) return { ok: false, error: 'Captcha Turnstile manquant. Recharge la page.' };
+        if (!token) {
+            return {
+                ok: false,
+                error: 'Valide le captcha anti-bot (case Cloudflare), puis reessaie.'
+            };
+        }
 
         const ip = request.headers.get('CF-Connecting-IP') || '';
         const form = new URLSearchParams();
@@ -259,12 +266,12 @@ export async function verifyBotProtection(env, request, body) {
         });
         const data = await res.json().catch(() => ({}));
         if (!data.success) {
-            return { ok: false, error: 'Captcha refuse. Es-tu un humain ? Reessaie.' };
+            return { ok: false, error: 'Captcha refuse. Recharge la page et reessaie.' };
         }
         return { ok: true, mode: 'turnstile' };
     }
 
-    // Fallback: simple math captcha (weaker, but works without setup).
+    // Fallback: simple math captcha (weaker, but works without Turnstile keys).
     const captchaOk = await consumeCaptcha(env, body?.captchaId, body?.captchaAnswer);
     if (!captchaOk) {
         return { ok: false, error: 'Captcha incorrect ou expire. Reessaie.' };
