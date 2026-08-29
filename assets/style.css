@@ -230,6 +230,9 @@ h1, h2, h3, h4 { font-family: var(--font-heading); font-weight: 900; text-transf
 .oauth-btn { display: block; text-align: center; text-decoration: none; padding: 14px 18px; border-radius: 8px; font-weight: 700; }
 .oauth-google { background: #fff; color: #111; }
 .oauth-microsoft { background: #2f2f2f; color: #fff; border: 1px solid rgba(255,255,255,0.15); }
+.auth-tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+.auth-tab { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: transparent; color: var(--text-gray); cursor: pointer; font-weight: 700; }
+.auth-tab.active { background: rgba(157, 43, 207, 0.15); border-color: var(--admin-color); color: #fff; }
 .portal-grid { display: grid; grid-template-columns: 300px 1fr; gap: 24px; align-items: start; }
 .portal-profile { text-align: center; }
 .portal-skin-wrap { position: relative; min-height: 180px; display: flex; justify-content: center; align-items: flex-end; margin-bottom: 16px; }

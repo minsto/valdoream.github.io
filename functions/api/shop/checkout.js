@@ -62,7 +62,7 @@ export async function onRequest({ request, env }) {
     if (!user) {
         return json({
             ok: false,
-            error: 'Connecte-toi avec Google ou Microsoft avant d acheter.'
+            error: 'Connecte-toi avec ton email avant d acheter.'
         }, 401);
     }
 

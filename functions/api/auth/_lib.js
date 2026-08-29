@@ -149,6 +149,97 @@ export async function setMinecraftIndex(env, userId, pseudo) {
 
 export const PSEUDO_RE = /^[a-zA-Z0-9_]{3,16}$/;
 export const DISCORD_RE = /^.{2,32}#[0-9]{4}$|^[a-zA-Z0-9._]{2,32}$/;
+export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function toHex(buffer) {
+    return [...new Uint8Array(buffer)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+export async function hashPassword(password, saltHex = null) {
+    const salt = saltHex
+        ? Uint8Array.from(saltHex.match(/.{2}/g).map(h => parseInt(h, 16)))
+        : crypto.getRandomValues(new Uint8Array(16));
+    const key = await crypto.subtle.importKey(
+        'raw',
+        new TextEncoder().encode(password),
+        'PBKDF2',
+        false,
+        ['deriveBits']
+    );
+    const bits = await crypto.subtle.deriveBits(
+        { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+        key,
+        256
+    );
+    return { salt: toHex(salt), hash: toHex(bits) };
+}
+
+export async function verifyPassword(password, saltHex, hashHex) {
+    const next = await hashPassword(password, saltHex);
+    return next.hash === hashHex;
+}
+
+export async function createCaptcha(env) {
+    const a = 2 + Math.floor(Math.random() * 8);
+    const b = 1 + Math.floor(Math.random() * 9);
+    const id = randomToken(12);
+    await env.CONTENT.put(
+        'captcha:' + id,
+        JSON.stringify({ answer: String(a + b), createdAt: Date.now() }),
+        { expirationTtl: 300 }
+    );
+    return { id, question: 'Combien font ' + a + ' + ' + b + ' ?' };
+}
+
+export async function consumeCaptcha(env, id, answer) {
+    if (!id || answer == null) return false;
+    const key = 'captcha:' + String(id);
+    const data = await env.CONTENT.get(key, 'json');
+    await env.CONTENT.delete(key);
+    if (!data) return false;
+    return String(answer).trim() === String(data.answer);
+}
+
+export async function createPasswordUser(env, { email, password, name }) {
+    const emailKey = String(email || '').trim().toLowerCase();
+    if (!EMAIL_RE.test(emailKey)) throw new Error('Email invalide.');
+    if (!password || String(password).length < 8) {
+        throw new Error('Mot de passe trop court (8 caracteres minimum).');
+    }
+
+    const existingId = await env.CONTENT.get('user_by_email:' + emailKey);
+    if (existingId) throw new Error('Un compte existe deja avec cet email.');
+
+    const { salt, hash } = await hashPassword(password);
+    const id = randomToken(16);
+    const user = emptyUser({
+        id,
+        email: emailKey,
+        name: name || emailKey.split('@')[0],
+        provider: 'password'
+    });
+    user.passwordSalt = salt;
+    user.passwordHash = hash;
+
+    await env.CONTENT.put('user_by_email:' + emailKey, id);
+    await env.CONTENT.put('user:' + id, JSON.stringify(user));
+    return user;
+}
+
+export async function loginPasswordUser(env, { email, password }) {
+    const emailKey = String(email || '').trim().toLowerCase();
+    const existingId = await env.CONTENT.get('user_by_email:' + emailKey);
+    if (!existingId) throw new Error('Email ou mot de passe incorrect.');
+
+    const user = await env.CONTENT.get('user:' + existingId, 'json');
+    if (!user || !user.passwordHash || !user.passwordSalt) {
+        throw new Error('Ce compte utilise une autre methode de connexion.');
+    }
+
+    const ok = await verifyPassword(password, user.passwordSalt, user.passwordHash);
+    if (!ok) throw new Error('Email ou mot de passe incorrect.');
+    return user;
+}
 
 export async function resolveMinecraftUuid(pseudo) {
     try {

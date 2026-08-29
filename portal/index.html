@@ -14,7 +14,7 @@
         <div class="logo" onclick="location.href='../'"><span class="logo-accent">VALD</span>OREAM</div>
         <ul class="nav-links">
             <li><a href="../">Accueil</a></li>
-            <li><a href="../#boutique" onclick="location.href='../';">Boutique</a></li>
+            <li><a href="../">Boutique</a></li>
             <li><a href="./" class="active">Mon portail</a></li>
         </ul>
         <div class="nav-actions">
@@ -26,18 +26,50 @@
     <main class="main-container portal-page">
         <div id="portal-alert" class="portal-alert" style="display:none;"></div>
 
-        <!-- NON CONNECTE -->
-        <section id="portal-guest" class="portal-card" style="display:none;">
+        <section id="portal-guest" class="portal-card" style="display:none; max-width: 480px; margin: 0 auto;">
             <h1>Portail Joueur</h1>
-            <p class="portal-lead">Connecte-toi pour gerer ton profil, voir ton grade, tes achats et ton statut sur le serveur Valdoream.</p>
-            <div class="oauth-buttons">
-                <a class="oauth-btn oauth-google" id="btn-google" href="/api/auth/google">Continuer avec Google</a>
-                <a class="oauth-btn oauth-microsoft" id="btn-microsoft" href="/api/auth/microsoft">Continuer avec Hotmail / Microsoft</a>
+            <p class="portal-lead">Cree un compte avec ton email, ou connecte-toi. Google / Hotmail arriveront plus tard.</p>
+
+            <div class="auth-tabs">
+                <button type="button" class="auth-tab active" id="tab-login" onclick="showAuthTab('login')">Connexion</button>
+                <button type="button" class="auth-tab" id="tab-register" onclick="showAuthTab('register')">Inscription</button>
             </div>
-            <p id="oauth-hint" class="portal-hint"></p>
+
+            <form id="form-login" onsubmit="submitLogin(event)">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="login-email" required placeholder="toi@email.com">
+                </div>
+                <div class="form-group">
+                    <label>Mot de passe</label>
+                    <input type="password" id="login-password" required minlength="8" placeholder="Au moins 8 caracteres">
+                </div>
+                <div class="form-group">
+                    <label id="login-captcha-label">Captcha</label>
+                    <input type="text" id="login-captcha" required placeholder="Ta reponse">
+                </div>
+                <button type="submit" class="btn-primary" style="width:100%; background: var(--admin-color);">Se connecter</button>
+                <p id="login-msg" class="portal-hint"></p>
+            </form>
+
+            <form id="form-register" onsubmit="submitRegister(event)" style="display:none;">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="register-email" required placeholder="toi@email.com">
+                </div>
+                <div class="form-group">
+                    <label>Mot de passe</label>
+                    <input type="password" id="register-password" required minlength="8" placeholder="Au moins 8 caracteres">
+                </div>
+                <div class="form-group">
+                    <label id="register-captcha-label">Captcha</label>
+                    <input type="text" id="register-captcha" required placeholder="Ta reponse">
+                </div>
+                <button type="submit" class="btn-primary" style="width:100%; background: var(--admin-color);">Creer mon compte</button>
+                <p id="register-msg" class="portal-hint"></p>
+            </form>
         </section>
 
-        <!-- CONNECTE -->
         <section id="portal-user" style="display:none;">
             <div class="portal-grid">
                 <aside class="portal-card portal-profile">
@@ -76,7 +108,7 @@
 
                     <div class="portal-card">
                         <h3>Mes achats</h3>
-                        <div id="purchases-empty" class="portal-hint">Aucun achat pour le moment. Va dans la boutique une fois ton pseudo renseigne.</div>
+                        <div id="purchases-empty" class="portal-hint">Aucun achat pour le moment.</div>
                         <table class="admin-table" id="purchases-table" style="display:none;">
                             <thead>
                                 <tr><th>Article</th><th>Prix</th><th>Date</th></tr>
@@ -94,6 +126,8 @@
 
     <script>
         let currentUser = null;
+        let loginCaptchaId = null;
+        let registerCaptchaId = null;
 
         function esc(value) {
             return String(value ?? '').replace(/[&<>"']/g, c => ({
@@ -112,21 +146,89 @@
             el.dataset.tone = tone || 'warn';
         }
 
-        async function loadProviders() {
+        function showAuthTab(which) {
+            document.getElementById('tab-login').classList.toggle('active', which === 'login');
+            document.getElementById('tab-register').classList.toggle('active', which === 'register');
+            document.getElementById('form-login').style.display = which === 'login' ? 'block' : 'none';
+            document.getElementById('form-register').style.display = which === 'register' ? 'block' : 'none';
+            if (which === 'login') loadCaptcha('login');
+            else loadCaptcha('register');
+        }
+
+        async function loadCaptcha(kind) {
             try {
-                const res = await fetch('/api/auth/providers', { cache: 'no-store' });
+                const res = await fetch('/api/auth/captcha', { cache: 'no-store' });
                 const data = await res.json();
-                const hint = document.getElementById('oauth-hint');
-                if (!data.google && !data.microsoft) {
-                    hint.textContent = 'OAuth pas encore configure sur Cloudflare (GOOGLE_CLIENT_ID / MICROSOFT_CLIENT_ID). Voir le README.';
-                    document.getElementById('btn-google').style.opacity = '0.4';
-                    document.getElementById('btn-microsoft').style.opacity = '0.4';
+                if (!data.ok) return;
+                if (kind === 'login') {
+                    loginCaptchaId = data.id;
+                    document.getElementById('login-captcha-label').textContent = 'Captcha : ' + data.question;
+                    document.getElementById('login-captcha').value = '';
                 } else {
-                    if (!data.google) document.getElementById('btn-google').style.display = 'none';
-                    if (!data.microsoft) document.getElementById('btn-microsoft').style.display = 'none';
+                    registerCaptchaId = data.id;
+                    document.getElementById('register-captcha-label').textContent = 'Captcha : ' + data.question;
+                    document.getElementById('register-captcha').value = '';
                 }
-            } catch {
-                document.getElementById('oauth-hint').textContent = 'Impossible de verifier les connexions OAuth.';
+            } catch (err) {
+                showAlert('Captcha indisponible : ' + err.message, 'warn');
+            }
+        }
+
+        async function submitLogin(e) {
+            e.preventDefault();
+            const msg = document.getElementById('login-msg');
+            msg.textContent = 'Connexion...';
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: document.getElementById('login-email').value.trim(),
+                        password: document.getElementById('login-password').value,
+                        captchaId: loginCaptchaId,
+                        captchaAnswer: document.getElementById('login-captcha').value.trim()
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok || !data.ok) {
+                    msg.textContent = data.error || 'Erreur';
+                    await loadCaptcha('login');
+                    return;
+                }
+                location.href = data.setup ? './?setup=1' : './';
+            } catch (err) {
+                msg.textContent = err.message;
+                await loadCaptcha('login');
+            }
+        }
+
+        async function submitRegister(e) {
+            e.preventDefault();
+            const msg = document.getElementById('register-msg');
+            msg.textContent = 'Creation du compte...';
+            try {
+                const res = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: document.getElementById('register-email').value.trim(),
+                        password: document.getElementById('register-password').value,
+                        captchaId: registerCaptchaId,
+                        captchaAnswer: document.getElementById('register-captcha').value.trim()
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok || !data.ok) {
+                    msg.textContent = data.error || 'Erreur';
+                    await loadCaptcha('register');
+                    return;
+                }
+                location.href = './?setup=1';
+            } catch (err) {
+                msg.textContent = err.message;
+                await loadCaptcha('register');
             }
         }
 
@@ -142,7 +244,7 @@
             document.getElementById('profile-mc').textContent = user.minecraftPseudo || 'Non renseigne';
             document.getElementById('profile-discord').textContent = user.discordPseudo || 'Non renseigne';
             document.getElementById('profile-provider').textContent =
-                user.provider === 'google' ? 'Google' : user.provider === 'microsoft' ? 'Microsoft' : (user.provider || '—');
+                user.provider === 'password' ? 'Email' : (user.provider || '—');
 
             const ban = document.getElementById('ban-badge');
             if (user.banned) {
@@ -162,10 +264,6 @@
                 body.src = user.skin.body;
                 body.style.display = 'block';
                 avatar.src = user.skin.avatar;
-                avatar.style.display = 'block';
-            } else if (user.picture) {
-                body.style.display = 'none';
-                avatar.src = user.picture;
                 avatar.style.display = 'block';
             } else {
                 body.style.display = 'none';
@@ -195,9 +293,9 @@
         async function loadSession() {
             const params = new URLSearchParams(location.search);
             if (params.get('error')) showAlert(params.get('error'), 'warn');
-            if (params.get('setup') === '1') showAlert('Compte cree. Renseigne ton pseudo Minecraft pour recevoir tes achats en jeu.', 'ok');
-
-            await loadProviders();
+            if (params.get('setup') === '1') {
+                showAlert('Compte pret. Renseigne ton pseudo Minecraft pour recevoir tes achats en jeu.', 'ok');
+            }
 
             try {
                 const res = await fetch('/api/auth/me', { cache: 'no-store', credentials: 'same-origin' });
@@ -207,10 +305,12 @@
                 } else {
                     document.getElementById('portal-guest').style.display = 'block';
                     document.getElementById('portal-user').style.display = 'none';
+                    await loadCaptcha('login');
                 }
             } catch (err) {
                 showAlert('Impossible de charger la session : ' + err.message, 'warn');
                 document.getElementById('portal-guest').style.display = 'block';
+                await loadCaptcha('login');
             }
         }
 
@@ -218,7 +318,6 @@
             e.preventDefault();
             const msg = document.getElementById('profile-save-msg');
             msg.textContent = 'Enregistrement...';
-
             try {
                 const res = await fetch('/api/auth/profile', {
                     method: 'PUT',
@@ -236,7 +335,6 @@
                 }
                 msg.textContent = 'Profil enregistre.';
                 renderUser(data.user);
-                showAlert('', 'ok');
             } catch (err) {
                 msg.textContent = err.message;
             }

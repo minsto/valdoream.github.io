@@ -263,17 +263,13 @@
     <div class="modal-overlay" id="auth-modal">
         <div class="modal-content">
             <button class="modal-close" onclick="closeModal('auth-modal')">&times;</button>
-            <h3 style="margin-bottom: 15px; text-align: center;">Connexion Joueur</h3>
-            <p style="color: var(--text-gray); font-size: 0.85rem; text-align: center; margin-bottom: 18px;">
-                Connecte-toi avec Google ou Hotmail / Microsoft, puis renseigne ton pseudo Minecraft dans ton portail.
+            <h3 style="margin-bottom: 12px; text-align: center;">Connexion Joueur</h3>
+            <p style="color: var(--text-gray); font-size: 0.85rem; text-align: center; margin-bottom: 16px;">
+                Cree un compte avec email + mot de passe, ou connecte-toi. Google / Hotmail arriveront plus tard.
             </p>
-            <div class="oauth-buttons">
-                <a class="oauth-btn oauth-google" href="/api/auth/google">Continuer avec Google</a>
-                <a class="oauth-btn oauth-microsoft" href="/api/auth/microsoft">Continuer avec Hotmail / Microsoft</a>
-            </div>
-            <p style="color: var(--text-gray); font-size: 0.75rem; text-align: center; margin-top: 16px;">
-                Deja inscrit ? <a href="portal/" style="color: var(--accent-orange);">Ouvrir mon portail</a>
-            </p>
+            <a class="btn-primary" style="display:block; text-align:center; text-decoration:none; background: var(--admin-color);" href="portal/">
+                Ouvrir le portail joueur
+            </a>
         </div>
     </div>
 
@@ -431,7 +427,7 @@
         async function checkoutCart() {
             if (cart.length === 0) return alert('Votre panier est vide.');
             if (!currentUser) {
-                alert('Connecte-toi avec Google ou Microsoft avant d acheter.');
+                alert('Connecte-toi (email + mot de passe) avant d acheter.');
                 openModal('auth-modal');
                 return;
             }
