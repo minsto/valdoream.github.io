@@ -86,7 +86,6 @@
                         <img id="skin-avatar" class="portal-avatar" alt="Avatar" src="">
                     </div>
                     <h2 id="profile-name">Joueur</h2>
-                    <p id="profile-email" class="portal-muted"></p>
                     <div id="ban-badge" class="status-pill" data-tone="ok">Compte actif</div>
                     <div class="portal-meta">
                         <div><span>Grade</span><b id="profile-grade">Joueur</b></div>
@@ -115,6 +114,16 @@
                     </div>
 
                     <div class="portal-card">
+                        <h3>Mon compte</h3>
+                        <p class="portal-hint">Gere ton adresse de connexion ou supprime definitivement ton compte.</p>
+                        <div style="display:flex; flex-wrap:wrap; gap:10px;">
+                            <button type="button" class="btn-secondary" onclick="openEmailModal()">Modifier l'email</button>
+                            <button type="button" class="btn-secondary" style="border-color:#e74c3c; color:#e74c3c;" onclick="openDeleteModal()">Supprimer mon compte</button>
+                        </div>
+                        <p id="account-action-msg" class="portal-hint"></p>
+                    </div>
+
+                    <div class="portal-card">
                         <h3>Mes achats</h3>
                         <div id="purchases-empty" class="portal-hint">Aucun achat pour le moment.</div>
                         <table class="admin-table" id="purchases-table" style="display:none;">
@@ -131,6 +140,42 @@
             </div>
         </section>
     </main>
+
+    <div class="modal-overlay" id="email-modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal('email-modal')">&times;</button>
+            <h2>Modifier l'email</h2>
+            <p class="portal-hint">Confirme avec ton mot de passe actuel.</p>
+            <form onsubmit="submitEmailChange(event)">
+                <div class="form-group">
+                    <label>Nouvel email</label>
+                    <input type="email" id="email-new" required placeholder="nouvel@email.com">
+                </div>
+                <div class="form-group">
+                    <label>Mot de passe</label>
+                    <input type="password" id="email-password" required minlength="8" autocomplete="current-password">
+                </div>
+                <button type="submit" class="btn-primary" style="background: var(--admin-color);">Enregistrer l'email</button>
+                <p id="email-change-msg" class="portal-hint"></p>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="delete-modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal('delete-modal')">&times;</button>
+            <h2>Supprimer mon compte</h2>
+            <p class="portal-hint">Action definitive : profil, historique d'achats et session seront effaces.</p>
+            <form onsubmit="submitAccountDelete(event)">
+                <div class="form-group">
+                    <label>Mot de passe</label>
+                    <input type="password" id="delete-password" required minlength="8" autocomplete="current-password">
+                </div>
+                <button type="submit" class="btn-secondary" style="border-color:#e74c3c; color:#e74c3c;">Confirmer la suppression</button>
+                <p id="delete-account-msg" class="portal-hint"></p>
+            </form>
+        </div>
+    </div>
 
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
     <script>
@@ -333,7 +378,6 @@
             document.getElementById('btn-logout').style.display = 'inline-flex';
 
             document.getElementById('profile-name').textContent = user.name || 'Joueur';
-            document.getElementById('profile-email').textContent = user.email || '';
             document.getElementById('profile-grade').textContent = user.grade || 'Joueur';
             document.getElementById('profile-mc').textContent = user.minecraftPseudo || 'Non renseigne';
             document.getElementById('profile-discord').textContent = user.discordPseudo || 'Non renseigne';
@@ -429,6 +473,79 @@
                 }
                 msg.textContent = 'Profil enregistre.';
                 renderUser(data.user);
+            } catch (err) {
+                msg.textContent = err.message;
+            }
+        }
+
+        function openModal(id) {
+            document.getElementById(id)?.classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id)?.classList.remove('active');
+        }
+
+        function openEmailModal() {
+            document.getElementById('email-new').value = currentUser?.email || '';
+            document.getElementById('email-password').value = '';
+            document.getElementById('email-change-msg').textContent = '';
+            openModal('email-modal');
+        }
+
+        function openDeleteModal() {
+            document.getElementById('delete-password').value = '';
+            document.getElementById('delete-account-msg').textContent = '';
+            openModal('delete-modal');
+        }
+
+        async function submitEmailChange(e) {
+            e.preventDefault();
+            const msg = document.getElementById('email-change-msg');
+            msg.textContent = 'Mise a jour...';
+            try {
+                const res = await fetch('/api/auth/email', {
+                    method: 'PUT',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: document.getElementById('email-new').value.trim(),
+                        password: document.getElementById('email-password').value
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok || !data.ok) {
+                    msg.textContent = data.error || 'Erreur';
+                    return;
+                }
+                renderUser(data.user);
+                closeModal('email-modal');
+                document.getElementById('account-action-msg').textContent = 'Email mis a jour.';
+            } catch (err) {
+                msg.textContent = err.message;
+            }
+        }
+
+        async function submitAccountDelete(e) {
+            e.preventDefault();
+            const msg = document.getElementById('delete-account-msg');
+            if (!confirm('Supprimer definitivement ton compte Valdoream ?')) return;
+            msg.textContent = 'Suppression...';
+            try {
+                const res = await fetch('/api/auth/account', {
+                    method: 'DELETE',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        password: document.getElementById('delete-password').value
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok || !data.ok) {
+                    msg.textContent = data.error || 'Erreur';
+                    return;
+                }
+                location.href = './';
             } catch (err) {
                 msg.textContent = err.message;
             }

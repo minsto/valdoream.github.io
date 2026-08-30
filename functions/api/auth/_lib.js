@@ -144,6 +144,73 @@ export async function saveUser(env, user) {
     return user;
 }
 
+export function getSessionToken(request) {
+    const cookies = parseCookies(request.headers.get('Cookie'));
+    return cookies[SESSION_COOKIE] || null;
+}
+
+export async function changeUserEmail(env, user, { newEmail, password }) {
+    if (!user.passwordHash || !user.passwordSalt) {
+        throw new Error('Changement d email indisponible pour ce compte.');
+    }
+    const ok = await verifyPassword(password, user.passwordSalt, user.passwordHash);
+    if (!ok) throw new Error('Mot de passe incorrect.');
+
+    const emailKey = String(newEmail || '').trim().toLowerCase();
+    if (!EMAIL_RE.test(emailKey)) throw new Error('Email invalide.');
+    if (emailKey === String(user.email || '').toLowerCase()) {
+        throw new Error('C est deja ton email actuel.');
+    }
+
+    const taken = await env.CONTENT.get('user_by_email:' + emailKey);
+    if (taken && taken !== user.id) {
+        throw new Error('Cet email est deja utilise.');
+    }
+
+    const oldEmail = String(user.email || '').toLowerCase();
+    if (oldEmail) await env.CONTENT.delete('user_by_email:' + oldEmail);
+    user.email = emailKey;
+    await env.CONTENT.put('user_by_email:' + emailKey, user.id);
+    await saveUser(env, user);
+    return user;
+}
+
+export async function deleteUserAccount(env, user, { password }, sessionToken) {
+    if (user.passwordHash && user.passwordSalt) {
+        const ok = await verifyPassword(password, user.passwordSalt, user.passwordHash);
+        if (!ok) throw new Error('Mot de passe incorrect.');
+    } else if (!password) {
+        throw new Error('Mot de passe requis pour supprimer le compte.');
+    }
+
+    if (user.email) {
+        await env.CONTENT.delete('user_by_email:' + String(user.email).toLowerCase());
+    }
+    if (user.minecraftPseudo) {
+        await env.CONTENT.delete(
+            'minecraft_index:' + String(user.minecraftPseudo).toLowerCase()
+        );
+    }
+    await env.CONTENT.delete('user:' + user.id);
+
+    if (sessionToken) {
+        await env.CONTENT.delete('session:' + sessionToken);
+    }
+
+    // Nettoie les autres sessions du meme compte (scan leger).
+    let cursor;
+    do {
+        const page = await env.CONTENT.list({ prefix: 'session:', cursor, limit: 200 });
+        for (const key of page.keys || []) {
+            const session = await env.CONTENT.get(key.name, 'json');
+            if (session && session.userId === user.id) {
+                await env.CONTENT.delete(key.name);
+            }
+        }
+        cursor = page.list_complete ? undefined : page.cursor;
+    } while (cursor);
+}
+
 export async function findUserByMinecraft(env, pseudo) {
     // Scan leger via index optionnel ; sinon null (utilise lors du sync ban admin).
     const index = await env.CONTENT.get('minecraft_index:' + String(pseudo).toLowerCase());
