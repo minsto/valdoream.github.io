@@ -135,7 +135,6 @@
                         <div><span>Grade</span><b id="profile-grade">Joueur</b></div>
                         <div><span>Minecraft</span><b id="profile-mc">—</b></div>
                         <div><span>Discord</span><b id="profile-discord">—</b></div>
-                        <div><span>Compte</span><b id="profile-provider">—</b></div>
                     </div>
                 </aside>
 
@@ -155,6 +154,17 @@
                             <button type="submit" class="btn-primary" style="background: var(--admin-color);">Enregistrer le profil</button>
                             <p id="profile-save-msg" class="portal-hint"></p>
                         </form>
+                    </div>
+
+                    <div class="portal-card">
+                        <h3>Sync launcher</h3>
+                        <p class="portal-hint">Genere un code, puis dans le launcher clique <b>Synchroniser Valdoream</b> et entre ce code. Valable 10 minutes.</p>
+                        <button type="button" class="btn-primary" style="background: var(--admin-color);" onclick="createLauncherPairCode()">Activer la synchronisation</button>
+                        <div id="pair-code-box" style="display:none; margin-top:16px; text-align:center;">
+                            <p class="portal-hint" style="margin-bottom:8px;">Code a entrer dans le launcher :</p>
+                            <p id="pair-code-value" style="font-size:2.4rem; font-weight:800; letter-spacing:0.35em; color:#fff; font-family:Montserrat,sans-serif;"></p>
+                        </div>
+                        <p id="pair-code-msg" class="portal-hint"></p>
                     </div>
 
                     <div class="portal-card">
@@ -540,8 +550,6 @@
             document.getElementById('profile-grade').textContent = user.grade || 'Joueur';
             document.getElementById('profile-mc').textContent = user.minecraftPseudo || 'Non renseigne';
             document.getElementById('profile-discord').textContent = user.discordPseudo || 'Non renseigne';
-            document.getElementById('profile-provider').textContent =
-                user.provider === 'password' ? 'Email' : (user.provider || '—');
 
             const ban = document.getElementById('ban-badge');
             if (user.banned) {
@@ -671,6 +679,32 @@
 
         // Apres login pendant link_launcher : deja gere via redirect URL.
 
+
+        async function createLauncherPairCode() {
+            const msg = document.getElementById('pair-code-msg');
+            const box = document.getElementById('pair-code-box');
+            const value = document.getElementById('pair-code-value');
+            msg.textContent = 'Generation...';
+            box.style.display = 'none';
+            try {
+                const res = await fetch('/api/auth/launcher-pair-create', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: '{}'
+                });
+                const data = await res.json();
+                if (!res.ok || !data.ok) {
+                    msg.textContent = data.error || 'Erreur';
+                    return;
+                }
+                value.textContent = data.code;
+                box.style.display = 'block';
+                msg.textContent = data.message || 'Entre ce code dans le launcher.';
+            } catch (err) {
+                msg.textContent = err.message;
+            }
+        }
 
         async function saveProfile(e) {
             e.preventDefault();
