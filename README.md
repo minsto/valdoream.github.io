@@ -62,7 +62,10 @@ Le contenu modifié dans le panel part dans **Workers KV**, la base de données 
 | `/api/content` | `GET` | tout le monde, en lecture seule |
 | `/admin/api/content` | `GET`, `PUT`, `DELETE` | seulement avec le mot de passe du panel |
 | `/api/shop/checkout` | `POST` | achat boutique (compte connecte) |
-| `/api/auth/*` | OAuth | Google / Microsoft + profil joueur |
+| `/api/auth/*` | OAuth / email | Google / Microsoft + profil joueur |
+| `/api/auth/forgot-password` | `POST` | lien de reset envoye par email |
+| `/api/auth/reset-password` | `POST` | nouveau mot de passe via token |
+| `/admin/api/players/accounts` | `GET`, `POST`, `DELETE` | liste / ban / supprimer un compte |
 | `/api/minecraft/queue` | `GET`, `POST` | le serveur Minecraft (cle `SERVER_API_KEY`) |
 | `/admin/api/minecraft/command` | `POST` | console admin (mot de passe panel) |
 | `/admin/api/players/sync` | `POST` | sync ban/grade vers compte inscrit |
@@ -74,14 +77,33 @@ Le portail est sur **`/portal/`**.
 Pour l'instant :
 - **Inscription** : email + mot de passe (8 caracteres min) + captcha
 - **Connexion** : email + mot de passe + captcha
+- **Mot de passe oublie** : lien envoye par email (Resend), valide 1 heure
 - Ensuite le joueur renseigne **pseudo Minecraft** et **Discord**
 - Le portail affiche skin, grade, achats, ban
+
+Dans le panel admin (**Gestion Joueurs**) tu peux **bannir** ou **supprimer** un compte inscrit.
 
 Google / Hotmail arriveront plus tard, quand le vrai domaine du site sera en place.
 Les routes OAuth existent deja dans le code, mais elles sont desactivees dans l'interface.
 
 Le captcha anti-bot utilise **Cloudflare Turnstile** (recommande) quand il est configure.
 Sinon, un calcul simple sert de secours (moins fort contre les bots).
+
+### Activer la recuperation de mot de passe (email)
+
+Les emails passent par [Resend](https://resend.com) (gratuit pour demarrer).
+
+1. Cree un compte sur https://resend.com
+2. **API Keys** → cree une cle (`re_...`)
+3. (Recommande) verifie ton domaine et cree un expediteur `noreply@ton-domaine.com`
+   - Sans domaine verifie, Resend n'autorise que l'envoi vers **ton propre email** de test (`onboarding@resend.dev`)
+4. Projet Pages **valdoream** → **Settings** → **Environment variables** :
+   - `RESEND_API_KEY` = ta cle API (Secret)
+   - `MAIL_FROM` = `Valdoream <noreply@ton-domaine.com>` (ou laisse le defaut Resend pour tester)
+   - `SITE_URL` = `https://valdoream.pages.dev` (optionnel, utilise pour le lien dans l'email)
+5. **Deployments** → **Retry deployment** (ou push le code)
+
+Ensuite : Portail → **Mot de passe oublie** → le joueur recoit un lien `/portal/?reset=...`.
 
 ### Activer Turnstile (anti-bot fort)
 

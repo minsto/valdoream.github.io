@@ -33,6 +33,7 @@
             <div class="auth-tabs">
                 <button type="button" class="auth-tab active" id="tab-login" onclick="showAuthTab('login')">Connexion</button>
                 <button type="button" class="auth-tab" id="tab-register" onclick="showAuthTab('register')">Inscription</button>
+                <button type="button" class="auth-tab" id="tab-forgot" onclick="showAuthTab('forgot')">Mot de passe oublie</button>
             </div>
 
             <form id="form-login" onsubmit="submitLogin(event)">
@@ -53,6 +54,9 @@
                     <div id="login-turnstile"></div>
                 </div>
                 <button type="submit" class="btn-primary" style="width:100%; background: var(--admin-color);">Se connecter</button>
+                <p class="portal-hint" style="margin-top:10px;">
+                    <a href="#" onclick="showAuthTab('forgot'); return false;" style="color: var(--accent-orange);">Mot de passe oublie ?</a>
+                </p>
                 <p id="login-msg" class="portal-hint"></p>
             </form>
 
@@ -75,6 +79,38 @@
                 </div>
                 <button type="submit" class="btn-primary" style="width:100%; background: var(--admin-color);">Creer mon compte</button>
                 <p id="register-msg" class="portal-hint"></p>
+            </form>
+
+            <form id="form-forgot" onsubmit="submitForgot(event)" style="display:none;">
+                <p class="portal-hint">Indique l'email de ton compte : tu recevras un lien pour choisir un nouveau mot de passe.</p>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="forgot-email" required placeholder="toi@email.com">
+                </div>
+                <div class="form-group" id="forgot-math-wrap">
+                    <label id="forgot-captcha-label">Captcha anti-bot</label>
+                    <input type="text" id="forgot-captcha" placeholder="Ta reponse">
+                </div>
+                <div class="form-group" id="forgot-turnstile-wrap" style="display:none;">
+                    <label>Verification anti-bot</label>
+                    <div id="forgot-turnstile"></div>
+                </div>
+                <button type="submit" class="btn-primary" style="width:100%; background: var(--admin-color);">Envoyer le lien</button>
+                <p id="forgot-msg" class="portal-hint"></p>
+            </form>
+
+            <form id="form-reset" onsubmit="submitReset(event)" style="display:none;">
+                <p class="portal-hint">Choisis un nouveau mot de passe (8 caracteres minimum).</p>
+                <div class="form-group">
+                    <label>Nouveau mot de passe</label>
+                    <input type="password" id="reset-password" required minlength="8" autocomplete="new-password" placeholder="Au moins 8 caracteres">
+                </div>
+                <div class="form-group">
+                    <label>Confirmer</label>
+                    <input type="password" id="reset-password-confirm" required minlength="8" autocomplete="new-password" placeholder="Retape le mot de passe">
+                </div>
+                <button type="submit" class="btn-primary" style="width:100%; background: var(--admin-color);">Enregistrer le mot de passe</button>
+                <p id="reset-msg" class="portal-hint"></p>
             </form>
         </section>
 
@@ -184,10 +220,14 @@
         let turnstileSiteKey = null;
         let loginCaptchaId = null;
         let registerCaptchaId = null;
+        let forgotCaptchaId = null;
         let loginTurnstileWidget = null;
         let registerTurnstileWidget = null;
+        let forgotTurnstileWidget = null;
         let loginTurnstileToken = null;
         let registerTurnstileToken = null;
+        let forgotTurnstileToken = null;
+        let resetToken = null;
 
         function esc(value) {
             return String(value ?? '').replace(/[&<>"']/g, c => ({
@@ -209,9 +249,28 @@
         function showAuthTab(which) {
             document.getElementById('tab-login').classList.toggle('active', which === 'login');
             document.getElementById('tab-register').classList.toggle('active', which === 'register');
+            document.getElementById('tab-forgot').classList.toggle('active', which === 'forgot');
             document.getElementById('form-login').style.display = which === 'login' ? 'block' : 'none';
             document.getElementById('form-register').style.display = which === 'register' ? 'block' : 'none';
-            loadCaptcha(which);
+            document.getElementById('form-forgot').style.display = which === 'forgot' ? 'block' : 'none';
+            document.getElementById('form-reset').style.display = 'none';
+            if (which === 'login' || which === 'register' || which === 'forgot') {
+                loadCaptcha(which);
+            }
+        }
+
+        function showResetForm(token) {
+            resetToken = token;
+            document.getElementById('portal-guest').style.display = 'block';
+            document.getElementById('portal-user').style.display = 'none';
+            document.getElementById('form-login').style.display = 'none';
+            document.getElementById('form-register').style.display = 'none';
+            document.getElementById('form-forgot').style.display = 'none';
+            document.getElementById('form-reset').style.display = 'block';
+            document.getElementById('tab-login').classList.remove('active');
+            document.getElementById('tab-register').classList.remove('active');
+            document.getElementById('tab-forgot').classList.remove('active');
+            showAlert('Lien de reinitialisation detecte. Choisis ton nouveau mot de passe.', 'ok');
         }
 
         function ensureTurnstileScript(cb) {
@@ -227,7 +286,9 @@
 
         function renderTurnstile(kind) {
             ensureTurnstileScript(() => {
-                const hostId = kind === 'login' ? 'login-turnstile' : 'register-turnstile';
+                const hostId =
+                    kind === 'login' ? 'login-turnstile' :
+                    kind === 'register' ? 'register-turnstile' : 'forgot-turnstile';
                 const host = document.getElementById(hostId);
                 if (!host || !turnstileSiteKey || !window.turnstile) return;
 
@@ -241,22 +302,30 @@
                     registerTurnstileToken = null;
                     return;
                 }
+                if (kind === 'forgot' && forgotTurnstileWidget != null) {
+                    turnstile.reset(forgotTurnstileWidget);
+                    forgotTurnstileToken = null;
+                    return;
+                }
 
                 const widgetId = turnstile.render(host, {
                     sitekey: turnstileSiteKey,
                     theme: 'dark',
                     callback: (token) => {
                         if (kind === 'login') loginTurnstileToken = token;
-                        else registerTurnstileToken = token;
+                        else if (kind === 'register') registerTurnstileToken = token;
+                        else forgotTurnstileToken = token;
                     },
                     'expired-callback': () => {
                         if (kind === 'login') loginTurnstileToken = null;
-                        else registerTurnstileToken = null;
+                        else if (kind === 'register') registerTurnstileToken = null;
+                        else forgotTurnstileToken = null;
                     }
                 });
 
                 if (kind === 'login') loginTurnstileWidget = widgetId;
-                else registerTurnstileWidget = widgetId;
+                else if (kind === 'register') registerTurnstileWidget = widgetId;
+                else forgotTurnstileWidget = widgetId;
             });
         }
 
@@ -268,31 +337,35 @@
 
                 captchaMode = data.mode || 'math';
 
+                const mathIds = ['login-math-wrap', 'register-math-wrap', 'forgot-math-wrap'];
+                const turnIds = ['login-turnstile-wrap', 'register-turnstile-wrap', 'forgot-turnstile-wrap'];
+
                 if (captchaMode === 'turnstile') {
                     turnstileSiteKey = data.siteKey;
-                    document.getElementById('login-math-wrap').style.display = 'none';
-                    document.getElementById('register-math-wrap').style.display = 'none';
-                    document.getElementById('login-turnstile-wrap').style.display = 'block';
-                    document.getElementById('register-turnstile-wrap').style.display = 'block';
+                    mathIds.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+                    turnIds.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'block'; });
                     renderTurnstile(kind);
                     return;
                 }
 
-                document.getElementById('login-math-wrap').style.display = 'block';
-                document.getElementById('register-math-wrap').style.display = 'block';
-                document.getElementById('login-turnstile-wrap').style.display = 'none';
-                document.getElementById('register-turnstile-wrap').style.display = 'none';
+                mathIds.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'block'; });
+                turnIds.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
 
                 if (kind === 'login') {
                     loginCaptchaId = data.id;
                     document.getElementById('login-captcha-label').textContent = 'Captcha anti-bot : ' + data.question;
                     document.getElementById('login-captcha').value = '';
                     document.getElementById('login-captcha').required = true;
-                } else {
+                } else if (kind === 'register') {
                     registerCaptchaId = data.id;
                     document.getElementById('register-captcha-label').textContent = 'Captcha anti-bot : ' + data.question;
                     document.getElementById('register-captcha').value = '';
                     document.getElementById('register-captcha').required = true;
+                } else {
+                    forgotCaptchaId = data.id;
+                    document.getElementById('forgot-captcha-label').textContent = 'Captcha anti-bot : ' + data.question;
+                    document.getElementById('forgot-captcha').value = '';
+                    document.getElementById('forgot-captcha').required = true;
                 }
             } catch (err) {
                 showAlert('Captcha indisponible : ' + err.message, 'warn');
@@ -301,16 +374,25 @@
 
         function captchaPayload(kind) {
             if (captchaMode === 'turnstile') {
-                const token = kind === 'login' ? loginTurnstileToken : registerTurnstileToken;
+                const token =
+                    kind === 'login' ? loginTurnstileToken :
+                    kind === 'register' ? registerTurnstileToken :
+                    forgotTurnstileToken;
                 if (!token) {
                     throw new Error('Coche / valide le captcha anti-bot avant de continuer.');
                 }
                 return { turnstileToken: token };
             }
-            const answer = document.getElementById(kind === 'login' ? 'login-captcha' : 'register-captcha').value.trim();
+            const answer = document.getElementById(
+                kind === 'login' ? 'login-captcha' :
+                kind === 'register' ? 'register-captcha' : 'forgot-captcha'
+            ).value.trim();
             if (!answer) throw new Error('Reponds au captcha anti-bot.');
             return {
-                captchaId: kind === 'login' ? loginCaptchaId : registerCaptchaId,
+                captchaId:
+                    kind === 'login' ? loginCaptchaId :
+                    kind === 'register' ? registerCaptchaId :
+                    forgotCaptchaId,
                 captchaAnswer: answer
             };
         }
@@ -368,6 +450,67 @@
             } catch (err) {
                 msg.textContent = err.message;
                 await loadCaptcha('register');
+            }
+        }
+
+        async function submitForgot(e) {
+            e.preventDefault();
+            const msg = document.getElementById('forgot-msg');
+            msg.textContent = 'Envoi...';
+            try {
+                const res = await fetch('/api/auth/forgot-password', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: document.getElementById('forgot-email').value.trim(),
+                        ...captchaPayload('forgot')
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok || !data.ok) {
+                    msg.textContent = data.error || 'Erreur';
+                    await loadCaptcha('forgot');
+                    return;
+                }
+                msg.textContent = data.message || 'Email envoye si le compte existe.';
+                showAlert(data.message || 'Verifie ta boite mail.', 'ok');
+                await loadCaptcha('forgot');
+            } catch (err) {
+                msg.textContent = err.message;
+                await loadCaptcha('forgot');
+            }
+        }
+
+        async function submitReset(e) {
+            e.preventDefault();
+            const msg = document.getElementById('reset-msg');
+            const password = document.getElementById('reset-password').value;
+            const confirm = document.getElementById('reset-password-confirm').value;
+            if (password !== confirm) {
+                msg.textContent = 'Les mots de passe ne correspondent pas.';
+                return;
+            }
+            if (!resetToken) {
+                msg.textContent = 'Lien invalide. Demande un nouveau lien.';
+                return;
+            }
+            msg.textContent = 'Enregistrement...';
+            try {
+                const res = await fetch('/api/auth/reset-password', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: resetToken, password })
+                });
+                const data = await res.json();
+                if (!res.ok || !data.ok) {
+                    msg.textContent = data.error || 'Erreur';
+                    return;
+                }
+                location.href = './?setup=1';
+            } catch (err) {
+                msg.textContent = err.message;
             }
         }
 
@@ -433,6 +576,14 @@
             if (params.get('error')) showAlert(params.get('error'), 'warn');
             if (params.get('setup') === '1') {
                 showAlert('Compte pret. Renseigne ton pseudo Minecraft pour recevoir tes achats en jeu.', 'ok');
+            }
+
+            const reset = params.get('reset');
+            if (reset) {
+                showResetForm(reset);
+                // Nettoie l'URL sans recharger (le token reste en memoire).
+                history.replaceState({}, '', './');
+                return;
             }
 
             try {

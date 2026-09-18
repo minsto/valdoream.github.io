@@ -175,14 +175,7 @@ export async function changeUserEmail(env, user, { newEmail, password }) {
     return user;
 }
 
-export async function deleteUserAccount(env, user, { password }, sessionToken) {
-    if (user.passwordHash && user.passwordSalt) {
-        const ok = await verifyPassword(password, user.passwordSalt, user.passwordHash);
-        if (!ok) throw new Error('Mot de passe incorrect.');
-    } else if (!password) {
-        throw new Error('Mot de passe requis pour supprimer le compte.');
-    }
-
+export async function purgeUserAccount(env, user, sessionToken = null) {
     if (user.email) {
         await env.CONTENT.delete('user_by_email:' + String(user.email).toLowerCase());
     }
@@ -209,6 +202,142 @@ export async function deleteUserAccount(env, user, { password }, sessionToken) {
         }
         cursor = page.list_complete ? undefined : page.cursor;
     } while (cursor);
+}
+
+export async function deleteUserAccount(env, user, { password }, sessionToken) {
+    if (user.passwordHash && user.passwordSalt) {
+        const ok = await verifyPassword(password, user.passwordSalt, user.passwordHash);
+        if (!ok) throw new Error('Mot de passe incorrect.');
+    } else if (!password) {
+        throw new Error('Mot de passe requis pour supprimer le compte.');
+    }
+
+    await purgeUserAccount(env, user, sessionToken);
+}
+
+/** Suppression forcee depuis le panel admin (sans mot de passe joueur). */
+export async function adminDeleteUser(env, userId) {
+    const id = String(userId || '').trim();
+    if (!id) throw new Error('userId requis.');
+    const user = await env.CONTENT.get('user:' + id, 'json');
+    if (!user) throw new Error('Compte introuvable.');
+    await purgeUserAccount(env, user, null);
+    return user;
+}
+
+export const PASSWORD_RESET_TTL_SEC = 3600; // 1 heure
+
+export async function createPasswordResetToken(env, userId) {
+    const token = randomToken(24);
+    await env.CONTENT.put(
+        'password_reset:' + token,
+        JSON.stringify({ userId, createdAt: Date.now() }),
+        { expirationTtl: PASSWORD_RESET_TTL_SEC }
+    );
+    return token;
+}
+
+export async function consumePasswordResetToken(env, token) {
+    const raw = String(token || '').trim();
+    if (!raw) return null;
+    const key = 'password_reset:' + raw;
+    const data = await env.CONTENT.get(key, 'json');
+    await env.CONTENT.delete(key);
+    if (!data || !data.userId) return null;
+    return data;
+}
+
+export async function setUserPassword(env, user, password) {
+    if (!password || String(password).length < 8) {
+        throw new Error('Mot de passe trop court (8 caracteres minimum).');
+    }
+    const { salt, hash } = await hashPassword(password);
+    user.passwordSalt = salt;
+    user.passwordHash = hash;
+    user.provider = user.provider || 'password';
+    await saveUser(env, user);
+    return user;
+}
+
+/**
+ * Envoi d'email via Resend (Cloudflare Pages Functions).
+ * Variables : RESEND_API_KEY (secret), MAIL_FROM (ex: "Valdoream <noreply@ton-domaine.com>")
+ */
+export async function sendEmail(env, { to, subject, html, text }) {
+    const apiKey = envGet(env, 'RESEND_API_KEY');
+    const from = envGet(env, 'MAIL_FROM') || 'Valdoream <onboarding@resend.dev>';
+    if (!apiKey) {
+        throw new Error(
+            'Envoi email non configure : ajoute RESEND_API_KEY (et MAIL_FROM) dans Cloudflare Pages.'
+        );
+    }
+
+    const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+            Authorization: 'Bearer ' + apiKey,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            from,
+            to: [to],
+            subject,
+            html: html || undefined,
+            text: text || undefined
+        })
+    });
+
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok) {
+        const detail = payload?.message || payload?.error || ('HTTP ' + res.status);
+        throw new Error('Echec envoi email : ' + detail);
+    }
+    return payload;
+}
+
+export async function requestPasswordReset(env, request, email) {
+    const emailKey = String(email || '').trim().toLowerCase();
+    if (!EMAIL_RE.test(emailKey)) {
+        throw new Error('Email invalide.');
+    }
+
+    const existingId = await env.CONTENT.get('user_by_email:' + emailKey);
+    // Message neutre si le compte n'existe pas (anti-enumeration).
+    if (!existingId) {
+        return { sent: false, reason: 'unknown' };
+    }
+
+    const user = await env.CONTENT.get('user:' + existingId, 'json');
+    if (!user) {
+        return { sent: false, reason: 'unknown' };
+    }
+
+    // Comptes OAuth sans mot de passe : on ne peut pas "reset", mais on le dit gentiment.
+    if (!user.passwordHash || !user.passwordSalt) {
+        throw new Error(
+            'Ce compte se connecte autrement (Google / Microsoft). Pas de mot de passe a reinitialiser.'
+        );
+    }
+
+    const token = await createPasswordResetToken(env, user.id);
+    const base = siteUrl(env, request);
+    const resetUrl = base + '/portal/?reset=' + encodeURIComponent(token);
+
+    await sendEmail(env, {
+        to: emailKey,
+        subject: 'Valdoream — reinitialisation du mot de passe',
+        text:
+            'Tu as demande a reinitialiser ton mot de passe Valdoream.\n\n' +
+            'Ouvre ce lien (valide 1 heure) :\n' +
+            resetUrl +
+            '\n\nSi tu n\'as pas fait cette demande, ignore cet email.',
+        html:
+            '<p>Tu as demande a reinitialiser ton mot de passe Valdoream.</p>' +
+            '<p><a href="' + resetUrl + '">Choisir un nouveau mot de passe</a></p>' +
+            '<p style="color:#888;font-size:0.9em;">Lien valide 1 heure. Si tu n\'as pas fait cette demande, ignore cet email.</p>'
+    });
+
+    return { sent: true };
 }
 
 export async function findUserByMinecraft(env, pseudo) {
