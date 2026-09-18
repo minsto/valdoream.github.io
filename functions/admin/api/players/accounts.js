@@ -43,10 +43,9 @@ async function loadAccounts(env) {
 }
 
 function accountPayload(u) {
-    const safe = publicUser(u);
+    const { email, ...safe } = publicUser(u);
     return {
         ...safe,
-        email: u.email || null,
         purchaseCount: (u.purchases || []).length
     };
 }

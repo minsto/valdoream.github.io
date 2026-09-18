@@ -299,6 +299,11 @@
                 location.href = 'portal/';
                 return;
             }
+            // Dans le launcher (iframe), la session cookie ne passe pas : ouvrir le portail en onglet.
+            if (window.self !== window.top || new URLSearchParams(location.search).has('embed')) {
+                window.open('portal/', '_blank', 'noopener');
+                return;
+            }
             openModal('auth-modal');
         }
 
@@ -309,11 +314,17 @@
                 if (data.authenticated && data.user) {
                     currentUser = data.user;
                     const label = data.user.minecraftPseudo || data.user.name || 'Mon compte';
-                    document.getElementById('btn-login').innerHTML = '&#128100; ' + esc(label);
+                    const head = data.user.skin?.avatar
+                        ? `<img src="${esc(data.user.skin.avatar)}" alt="" style="width:18px;height:18px;image-rendering:pixelated;border-radius:3px;vertical-align:middle;margin-right:6px;">`
+                        : '&#128100; ';
+                    document.getElementById('btn-login').innerHTML = head + esc(label);
                     document.getElementById('btn-login').style.borderColor = data.user.banned ? '#e74c3c' : '#2bcf5e';
                     document.getElementById('btn-portal').style.display = 'inline-flex';
                 } else {
                     currentUser = null;
+                    if (window.self !== window.top || new URLSearchParams(location.search).has('embed')) {
+                        document.getElementById('btn-login').innerHTML = '&#128100; Portail';
+                    }
                 }
             } catch {
                 currentUser = null;

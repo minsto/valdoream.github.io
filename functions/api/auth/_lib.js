@@ -347,9 +347,33 @@ export async function findUserByMinecraft(env, pseudo) {
     return env.CONTENT.get('user:' + index, 'json');
 }
 
-export async function setMinecraftIndex(env, userId, pseudo) {
-    if (!pseudo) return;
-    await env.CONTENT.put('minecraft_index:' + String(pseudo).toLowerCase(), userId);
+export async function findUserByMinecraftUuid(env, uuid) {
+    const key = String(uuid || '').replace(/-/g, '').toLowerCase();
+    if (!key) return null;
+    const index = await env.CONTENT.get('minecraft_uuid:' + key);
+    if (!index) return null;
+    return env.CONTENT.get('user:' + index, 'json');
+}
+
+export async function setMinecraftIndex(env, userId, pseudo, uuid = null) {
+    if (pseudo) {
+        await env.CONTENT.put('minecraft_index:' + String(pseudo).toLowerCase(), userId);
+    }
+    const clean = String(uuid || '').replace(/-/g, '').toLowerCase();
+    if (clean) {
+        await env.CONTENT.put('minecraft_uuid:' + clean, userId);
+    }
+}
+
+/** Lookup public pour le launcher (pas d'email). */
+export async function lookupLauncherLink(env, { uuid, name }) {
+    let user = null;
+    if (uuid) user = await findUserByMinecraftUuid(env, uuid);
+    if (!user && name) user = await findUserByMinecraft(env, name);
+    if (!user || user.banned) {
+        return { linked: false, user: null };
+    }
+    return { linked: true, user };
 }
 
 export const PSEUDO_RE = /^[a-zA-Z0-9_]{3,16}$/;

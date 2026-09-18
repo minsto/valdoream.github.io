@@ -60,10 +60,13 @@ export async function onRequest({ request, env }) {
         const uuid = await resolveMinecraftUuid(minecraftPseudo);
         user.minecraftPseudo = minecraftPseudo;
         user.minecraftUuid = uuid;
-        await setMinecraftIndex(env, user.id, minecraftPseudo);
+        await setMinecraftIndex(env, user.id, minecraftPseudo, uuid);
     } else if (minecraftPseudo === '' || minecraftPseudo === null) {
         user.minecraftPseudo = null;
         user.minecraftUuid = null;
+    } else if (user.minecraftPseudo && user.minecraftUuid) {
+        // Reindex UUID (anciens comptes) pour la sync launcher.
+        await setMinecraftIndex(env, user.id, user.minecraftPseudo, user.minecraftUuid);
     }
 
     if (discordPseudo !== undefined) {
