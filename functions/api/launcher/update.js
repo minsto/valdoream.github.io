@@ -12,8 +12,8 @@ import { envGet, json, siteUrl } from '../auth/_lib.js';
 
 const MAX_ZIP = 80 * 1024 * 1024;
 const DEFAULT_REPOS = [
-    'minsto/ValdoreamLauncher-update',
-    'minsto/ValdoreamLuncher-update'
+    'minsto/ValdoreamLuncher-update',
+    'minsto/ValdoreamLauncher-update'
 ];
 
 function parseSemver(tag) {
@@ -244,7 +244,7 @@ export async function onRequestGet({ request, env }) {
 
     const origin = siteUrl(env, request);
     const zipUrl = realUpdate
-        ? `${origin}/api/launcher/update-download?asset=${encodeURIComponent(String(assetId))}`
+        ? `${origin}/api/launcher/update-download?asset=${encodeURIComponent(String(assetId))}&repo=${encodeURIComponent(repo)}`
         : '';
 
     return json({
