@@ -232,7 +232,7 @@
     <div id="page-boutique" class="page-section">
         <div class="section-header">
             <h2>Boutique Officielle <span class="gradient-text">Valdoream</span></h2>
-            <p>Soutenez l'hébergement du serveur et débloquez du prestige ainsi qu'un confort de jeu supérieur.</p>
+            <p>Soutenez l'hébergement du serveur et débloquez du prestige ainsi qu'un confort de jeu supérieur. Paiement securise PayPal.</p>
         </div>
 
         <div class="shop-tabs">
@@ -284,7 +284,28 @@
                 <span>Total :</span>
                 <span id="cart-total-price" style="color: var(--accent-orange);">0,00 €</span>
             </div>
-            <button class="btn-primary" style="width: 100%; margin-top: 10px;" onclick="checkoutCart()">Payer la commande</button>
+            <p style="color: var(--text-gray); font-size: 0.8rem; margin-top: 12px; line-height: 1.4;">
+                Paiement securise via <b>PayPal</b>. Aucune livraison en jeu avant verification du paiement.
+            </p>
+            <button class="btn-primary" style="width: 100%; margin-top: 10px;" onclick="checkoutCart()">Payer avec PayPal</button>
+        </div>
+    </div>
+
+    <!-- MODAL PAIEMENT PAYPAL -->
+    <div class="modal-overlay" id="paypal-modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal('paypal-modal')">&times;</button>
+            <h3 style="margin-bottom: 12px;">Paiement securise PayPal</h3>
+            <p id="paypal-order-ref" style="color: var(--accent-orange); font-weight: 700; font-size: 1.1rem; margin-bottom: 10px;"></p>
+            <p id="paypal-order-total" style="margin-bottom: 12px;"></p>
+            <ol style="color: var(--text-gray); font-size: 0.9rem; line-height: 1.55; padding-left: 18px; margin-bottom: 16px;">
+                <li>Clique sur le bouton PayPal ci-dessous.</li>
+                <li>Dans le <b>message</b> du paiement, colle ta reference de commande.</li>
+                <li>Paye le montant exact affiche.</li>
+                <li>La livraison en jeu arrive apres verification par le staff (quelques minutes a quelques heures).</li>
+            </ol>
+            <a id="paypal-pay-link" class="btn-primary" href="#" target="_blank" rel="noopener noreferrer" style="display:block; text-align:center; text-decoration:none; width:100%;">Ouvrir PayPal</a>
+            <button type="button" class="btn-secondary" style="width:100%; margin-top:10px;" onclick="closeModal('paypal-modal')">Fermer</button>
         </div>
     </div>
 
@@ -439,7 +460,7 @@
         async function checkoutCart() {
             if (cart.length === 0) return alert('Votre panier est vide.');
             if (!currentUser) {
-                alert('Connecte-toi (email + mot de passe) avant d acheter.');
+                alert('Connecte-toi avant d acheter (paiement securise PayPal).');
                 openModal('auth-modal');
                 return;
             }
@@ -467,7 +488,7 @@
                 const payload = await res.json().catch(() => ({}));
 
                 if (!res.ok || !payload.ok) {
-                    alert(payload.error || 'Impossible d envoyer la commande au serveur.');
+                    alert(payload.error || 'Impossible de preparer le paiement.');
                     if (res.status === 401) openModal('auth-modal');
                     return;
                 }
@@ -475,13 +496,15 @@
                 cart = [];
                 updateCartUI();
                 closeModal('cart-modal');
-                await refreshAuth();
 
-                let msg = 'Merci ! ' + (payload.message || 'Vos articles arrivent sur le serveur Valdoream sous quelques secondes.');
-                if (payload.missing && payload.missing.length) {
-                    msg += '\n\nArticles non livrables : ' + payload.missing.join(', ');
-                }
-                alert(msg);
+                document.getElementById('paypal-order-ref').textContent =
+                    'Reference : ' + (payload.orderId || '');
+                document.getElementById('paypal-order-total').textContent =
+                    'Montant : ' + formatPrice(payload.total || 0) + ' — pseudo : ' + (payload.player || currentUser.minecraftPseudo);
+                const link = document.getElementById('paypal-pay-link');
+                link.href = payload.paypalUrl || 'https://paypal.me/RemyGrandmaison?locale.x=fr_FR&country.x=FR';
+                openModal('paypal-modal');
+                window.open(link.href, '_blank', 'noopener');
             } catch (err) {
                 alert('Erreur reseau : ' + err.message);
             }

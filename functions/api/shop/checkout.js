@@ -1,14 +1,18 @@
 /*
- * Checkout boutique : utilise le compte connecte (pseudo Minecraft du profil).
- * Enregistre les achats sur le profil joueur + file Minecraft.
+ * Checkout boutique securise via PayPal.me
+ *
+ * 1) Cree une commande en attente (pas de livraison Minecraft)
+ * 2) Renvoie l'URL PayPal.me avec le montant + reference commande
+ * 3) L'admin confirme le paiement → livraison (voir /admin/api/shop/orders)
+ *
+ * Cloudflare (optionnel) :
+ *   PAYPAL_ME_URL = https://paypal.me/RemyGrandmaison
  */
 
-import {
-    getSessionUser,
-    saveUser
-} from '../auth/_lib';
+import { getSessionUser, envGet } from '../auth/_lib.js';
 
 const CONTENT_KEY = 'content';
+const DEFAULT_PAYPAL = 'https://paypal.me/RemyGrandmaison';
 
 function json(payload, status = 200) {
     return new Response(JSON.stringify(payload), {
@@ -20,30 +24,32 @@ function json(payload, status = 200) {
     });
 }
 
-function withQueue(content) {
+function withShop(content) {
     if (!content || typeof content !== 'object') return null;
+    if (!Array.isArray(content.shop)) content.shop = [];
+    if (!Array.isArray(content.pendingOrders)) content.pendingOrders = [];
     if (!Array.isArray(content.queue)) content.queue = [];
     if (!Array.isArray(content.sales)) content.sales = [];
     if (!Array.isArray(content.logs)) content.logs = [];
     return content;
 }
 
-function resolveCommand(template, player) {
-    if (!template || typeof template !== 'string') return null;
-    return template.replace(/\{player\}/gi, player).trim();
+function orderId() {
+    const n = Math.floor(Math.random() * 1e9).toString(36).toUpperCase().padStart(6, '0').slice(-6);
+    return 'VD-' + n;
 }
 
-function productCommandList(product) {
-    if (!product) return [];
-    if (Array.isArray(product.commands) && product.commands.length) {
-        return product.commands.map(c => String(c).trim()).filter(Boolean);
-    }
-    if (product.command) return [String(product.command).trim()];
-    return [];
+function paypalBase(env) {
+    const raw = envGet(env, 'PAYPAL_ME_URL') || DEFAULT_PAYPAL;
+    return String(raw).trim().replace(/\/+$/, '').split('?')[0];
 }
 
-function isGradeProduct(product) {
-    return product.category === 'grades' || /^grade\b/i.test(product.name || '');
+function buildPaypalUrl(base, totalEur) {
+    const amount = Number(totalEur);
+    if (!Number.isFinite(amount) || amount <= 0) return base + '?locale.x=fr_FR&country.x=FR';
+    // paypal.me/User/12.50 — montant en devise du compte (EUR ici)
+    const fixed = amount.toFixed(2);
+    return `${base}/${fixed}?locale.x=fr_FR&country.x=FR`;
 }
 
 export async function onRequest({ request, env }) {
@@ -62,7 +68,7 @@ export async function onRequest({ request, env }) {
     if (!user) {
         return json({
             ok: false,
-            error: 'Connecte-toi avec ton email avant d acheter.'
+            error: 'Connecte-toi avant d acheter (paiement securise PayPal).'
         }, 401);
     }
 
@@ -95,16 +101,14 @@ export async function onRequest({ request, env }) {
 
     try {
         const stored = await env.CONTENT.get(CONTENT_KEY, 'json');
-        const content = withQueue(stored ?? {});
-        if (!content.shop || !Array.isArray(content.shop)) {
+        const content = withShop(stored ?? {});
+        if (!content.shop.length) {
             return json({ ok: false, error: 'Catalogue boutique introuvable.' }, 500);
         }
 
-        const now = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-        const isoNow = new Date().toISOString();
-        const queued = [];
+        const lines = [];
         const missing = [];
-        const purchaseRows = [];
+        let total = 0;
 
         for (const item of items) {
             const product = content.shop.find(p => p.id === item.id || p.name === item.name);
@@ -112,81 +116,65 @@ export async function onRequest({ request, env }) {
                 missing.push(item.name || item.id);
                 continue;
             }
-
-            const templates = productCommandList(product);
-            if (!templates.length) {
-                missing.push(product.name + ' (pas de commande configuree)');
+            const price = Number(product.price);
+            if (!Number.isFinite(price) || price < 0) {
+                missing.push(product.name + ' (prix invalide)');
                 continue;
             }
-
-            let itemQueued = false;
-
-            for (const template of templates) {
-                const command = resolveCommand(template, player);
-                if (!command) continue;
-
-                const entry = {
-                    id: Date.now() + Math.floor(Math.random() * 1000),
-                    player,
-                    command,
-                    source: 'shop',
-                    itemName: product.name,
-                    userId: user.id,
-                    status: 'pending',
-                    createdAt: isoNow
-                };
-                content.queue.unshift(entry);
-                queued.push(entry);
-                itemQueued = true;
-
-                content.logs.push(
-                    `[Boutique]: ${player} a achete ${product.name} - commande en attente (${command})`
-                );
-            }
-
-            if (!itemQueued) {
-                missing.push(product.name + ' (commandes invalides)');
-                continue;
-            }
-
-            content.sales.unshift({
-                player,
-                item: product.name,
-                price: Number(product.price),
-                date: now,
-                userId: user.id
+            const qty = Math.max(1, Math.min(20, Number(item.qty) || 1));
+            lines.push({
+                id: product.id,
+                name: product.name,
+                price,
+                qty,
+                category: product.category || 'items',
+                command: product.command || '',
+                commands: Array.isArray(product.commands) ? product.commands : undefined
             });
-
-            purchaseRows.push({
-                id: Date.now() + Math.floor(Math.random() * 1000),
-                item: product.name,
-                price: Number(product.price),
-                date: isoNow,
-                category: product.category || 'items'
-            });
-
-            if (isGradeProduct(product)) {
-                user.grade = product.name.replace(/^Grade\s+/i, '') || product.name;
-            }
+            total += price * qty;
         }
 
-        if (queued.length === 0) {
+        if (!lines.length) {
             return json({
                 ok: false,
-                error: 'Aucun article livrable : ' + (missing.join(', ') || 'panier invalide')
+                error: 'Aucun article valide : ' + (missing.join(', ') || 'panier invalide')
             }, 400);
         }
 
-        if (!Array.isArray(user.purchases)) user.purchases = [];
-        user.purchases = [...purchaseRows, ...user.purchases].slice(0, 200);
-        await saveUser(env, user);
+        total = Math.round(total * 100) / 100;
+        const id = orderId();
+        const isoNow = new Date().toISOString();
+        const order = {
+            id,
+            status: 'awaiting_payment',
+            userId: user.id,
+            player,
+            email: user.email || '',
+            items: lines,
+            total,
+            currency: 'EUR',
+            createdAt: isoNow,
+            paidAt: null,
+            note: 'Indique la reference ' + id + ' dans le message PayPal.'
+        };
+
+        content.pendingOrders = [order, ...content.pendingOrders.filter(o => o.status === 'awaiting_payment')].slice(0, 200);
+        content.logs.push(`[Boutique]: commande ${id} creee pour ${player} — ${total.toFixed(2)} EUR (en attente PayPal)`);
         await env.CONTENT.put(CONTENT_KEY, JSON.stringify(content));
+
+        const paypalUrl = buildPaypalUrl(paypalBase(env), total);
 
         return json({
             ok: true,
-            queued: queued.length,
-            missing,
-            message: queued.length + ' commande(s) envoyee(s) au serveur Valdoream.'
+            pending: true,
+            orderId: id,
+            total,
+            currency: 'EUR',
+            player,
+            paypalUrl,
+            message:
+                'Paiement securise PayPal. Indique la reference ' + id +
+                ' dans le message du paiement. La livraison en jeu se fait apres verification.'
         });
     } catch (err) {
         return json({ ok: false, error: String(err) }, 502);

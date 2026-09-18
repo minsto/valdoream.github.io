@@ -121,6 +121,20 @@
                         </thead>
                         <tbody id="admin-products-table"></tbody>
                     </table>
+
+                    <h3 style="margin: 36px 0 12px;">Paiements PayPal en attente</h3>
+                    <p style="color: var(--text-gray); font-size: 0.85rem; margin-bottom: 14px;">
+                        Verifie le paiement sur PayPal (reference VD-… dans le message), puis clique <b>Confirmer</b> pour livrer en jeu.
+                    </p>
+                    <button type="button" class="btn-secondary" style="margin-bottom: 12px;" onclick="loadPendingOrders()">Actualiser les commandes</button>
+                    <table class="admin-table">
+                        <thead>
+                            <tr><th>Ref</th><th>Joueur</th><th>Articles</th><th>Total</th><th>Date</th><th>Actions</th></tr>
+                        </thead>
+                        <tbody id="admin-orders-table">
+                            <tr><td colspan="6" style="color:gray;">Chargement…</td></tr>
+                        </tbody>
+                    </table>
                 </div>
 
                 <!-- TAB 5 : CONSOLE -->
@@ -325,6 +339,7 @@
             }
 
             if (tabId === 'dash-players') loadRegisteredAccounts();
+            if (tabId === 'dash-shop') loadPendingOrders();
         }
 
         // --- VUE D'ENSEMBLE ---
@@ -576,6 +591,69 @@
                     <td><button class="action-btn delete" onclick="deleteProduct(${prod.id})">Supprimer</button></td>
                 </tr>
             `).join('');
+        }
+
+        async function loadPendingOrders() {
+            const tbody = document.getElementById('admin-orders-table');
+            if (!tbody) return;
+            tbody.innerHTML = '<tr><td colspan="6" style="color:gray;">Chargement…</td></tr>';
+            try {
+                const res = await fetch('/admin/api/shop/orders', { cache: 'no-store' });
+                const data = await res.json();
+                const pending = (data.pending || []);
+                if (!pending.length) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="color:gray;">Aucune commande en attente.</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = pending.map(o => {
+                    const items = (o.items || []).map(i => esc(i.name) + (i.qty > 1 ? ' x' + i.qty : '')).join(', ');
+                    const when = o.createdAt ? new Date(o.createdAt).toLocaleString('fr-FR') : '—';
+                    return `<tr>
+                        <td><b>${esc(o.id)}</b></td>
+                        <td>${esc(o.player || '')}<br><span style="color:gray;font-size:0.75rem;">${esc(o.email || '')}</span></td>
+                        <td>${items}</td>
+                        <td>${Number(o.total).toFixed(2)} €</td>
+                        <td>${esc(when)}</td>
+                        <td>
+                            <button class="action-btn" onclick="confirmShopOrder('${esc(o.id)}')">Confirmer</button>
+                            <button class="action-btn delete" onclick="cancelShopOrder('${esc(o.id)}')">Annuler</button>
+                        </td>
+                    </tr>`;
+                }).join('');
+            } catch (err) {
+                tbody.innerHTML = '<tr><td colspan="6" style="color:#e74c3c;">Erreur : ' + esc(err.message) + '</td></tr>';
+            }
+        }
+
+        async function confirmShopOrder(orderId) {
+            if (!confirm('Confirmer le paiement PayPal pour ' + orderId + ' et livrer en jeu ?')) return;
+            const res = await fetch('/admin/api/shop/orders', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orderId, action: 'confirm' })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.ok) {
+                alert(data.error || 'Confirmation impossible');
+                return;
+            }
+            alert('Paye confirme. Commandes serveur : ' + (data.queued || 0));
+            loadPendingOrders();
+        }
+
+        async function cancelShopOrder(orderId) {
+            if (!confirm('Annuler la commande ' + orderId + ' ?')) return;
+            const res = await fetch('/admin/api/shop/orders', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orderId, action: 'cancel' })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.ok) {
+                alert(data.error || 'Annulation impossible');
+                return;
+            }
+            loadPendingOrders();
         }
 
         function saveNewProduct(e) {
