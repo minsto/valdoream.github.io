@@ -26,6 +26,14 @@
     <main class="main-container portal-page">
         <div id="portal-alert" class="portal-alert" style="display:none;"></div>
 
+        <section id="portal-link-launcher" class="portal-card" style="display:none; max-width: 480px; margin: 0 auto;">
+            <h1>Lier le launcher</h1>
+            <p class="portal-lead">Autorise le launcher Valdoream a te connecter automatiquement sur le site.</p>
+            <p id="link-launcher-account" class="portal-hint"></p>
+            <button type="button" class="btn-primary" style="width:100%; background: var(--admin-color);" onclick="confirmLauncherLink()">Autoriser la synchronisation</button>
+            <p id="link-launcher-msg" class="portal-hint"></p>
+        </section>
+
         <section id="portal-guest" class="portal-card" style="display:none; max-width: 480px; margin: 0 auto;">
             <h1>Portail Joueur</h1>
             <p class="portal-lead">Connecte-toi a ton compte Valdoream pour gerer ton profil, ton grade et tes achats.</p>
@@ -228,6 +236,8 @@
         let registerTurnstileToken = null;
         let forgotTurnstileToken = null;
         let resetToken = null;
+        let launcherLinkState = null;
+        let launcherLinkRedirect = null;
 
         function esc(value) {
             return String(value ?? '').replace(/[&<>"']/g, c => ({
@@ -418,7 +428,11 @@
                     await loadCaptcha('login');
                     return;
                 }
-                location.href = data.setup ? './?setup=1' : './';
+                location.href = data.setup
+                    ? './?setup=1' + (launcherLinkState ? '&link_launcher=1&state=' + encodeURIComponent(launcherLinkState) + '&redirect=' + encodeURIComponent(launcherLinkRedirect) : '')
+                    : (launcherLinkState
+                        ? './?link_launcher=1&state=' + encodeURIComponent(launcherLinkState) + '&redirect=' + encodeURIComponent(launcherLinkRedirect)
+                        : './');
             } catch (err) {
                 msg.textContent = err.message;
                 await loadCaptcha('login');
@@ -446,7 +460,9 @@
                     await loadCaptcha('register');
                     return;
                 }
-                location.href = './?setup=1';
+                location.href = './?setup=1' + (launcherLinkState
+                    ? '&link_launcher=1&state=' + encodeURIComponent(launcherLinkState) + '&redirect=' + encodeURIComponent(launcherLinkRedirect)
+                    : '');
             } catch (err) {
                 msg.textContent = err.message;
                 await loadCaptcha('register');
@@ -581,19 +597,31 @@
             const reset = params.get('reset');
             if (reset) {
                 showResetForm(reset);
-                // Nettoie l'URL sans recharger (le token reste en memoire).
                 history.replaceState({}, '', './');
                 return;
+            }
+
+            if (params.get('link_launcher') === '1') {
+                launcherLinkState = params.get('state') || '';
+                launcherLinkRedirect = params.get('redirect') || '';
             }
 
             try {
                 const res = await fetch('/api/auth/me', { cache: 'no-store', credentials: 'same-origin' });
                 const data = await res.json();
                 if (data.authenticated && data.user) {
-                    renderUser(data.user);
+                    if (launcherLinkState && launcherLinkRedirect) {
+                        showLauncherLink(data.user);
+                    } else {
+                        renderUser(data.user);
+                    }
                 } else {
                     document.getElementById('portal-guest').style.display = 'block';
                     document.getElementById('portal-user').style.display = 'none';
+                    document.getElementById('portal-link-launcher').style.display = 'none';
+                    if (launcherLinkState) {
+                        showAlert('Connecte-toi pour autoriser le launcher, puis tu seras relie automatiquement.', 'ok');
+                    }
                     await loadCaptcha('login');
                 }
             } catch (err) {
@@ -602,6 +630,47 @@
                 await loadCaptcha('login');
             }
         }
+
+        function showLauncherLink(user) {
+            document.getElementById('portal-guest').style.display = 'none';
+            document.getElementById('portal-user').style.display = 'none';
+            document.getElementById('portal-link-launcher').style.display = 'block';
+            document.getElementById('btn-logout').style.display = 'inline-flex';
+            const mc = user.minecraftPseudo || '(pseudo Minecraft manquant)';
+            document.getElementById('link-launcher-account').textContent =
+                'Compte : ' + (user.name || '') + ' — Minecraft : ' + mc;
+            if (!user.minecraftPseudo) {
+                document.getElementById('link-launcher-msg').textContent =
+                    'Enregistre d abord ton pseudo Minecraft (identique au launcher), puis reviens.';
+            }
+        }
+
+        async function confirmLauncherLink() {
+            const msg = document.getElementById('link-launcher-msg');
+            msg.textContent = 'Autorisation...';
+            try {
+                const res = await fetch('/api/auth/launcher-grant', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        state: launcherLinkState,
+                        redirect: launcherLinkRedirect
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok || !data.ok) {
+                    msg.textContent = data.error || 'Erreur';
+                    return;
+                }
+                location.href = data.redirect;
+            } catch (err) {
+                msg.textContent = err.message;
+            }
+        }
+
+        // Apres login pendant link_launcher : deja gere via redirect URL.
+
 
         async function saveProfile(e) {
             e.preventDefault();

@@ -500,6 +500,13 @@
 
         // --- INITIALISATION ---
         window.addEventListener('DOMContentLoaded', async () => {
+            const params = new URLSearchParams(location.search);
+            const lt = params.get('lt');
+            if (lt) {
+                location.replace('/api/auth/launcher-consume?token=' + encodeURIComponent(lt) + '&next=' + encodeURIComponent('/?embed=1'));
+                return;
+            }
+
             renderHomeContent();
             renderPublicShop();
             updateCartUI();

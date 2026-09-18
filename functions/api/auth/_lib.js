@@ -54,11 +54,12 @@ export function parseCookies(header) {
 }
 
 export function sessionCookieHeader(token, maxAgeSec = SESSION_DAYS * 86400) {
-    return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAgeSec}`;
+    // SameSite=None + Partitioned : la session marche aussi dans l'iframe du launcher.
+    return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=None; Partitioned; Max-Age=${maxAgeSec}`;
 }
 
 export function clearSessionCookie() {
-    return `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`;
+    return `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=None; Partitioned; Max-Age=0`;
 }
 
 export function randomToken(bytes = 32) {
