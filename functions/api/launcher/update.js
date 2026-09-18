@@ -91,7 +91,11 @@ async function fetchLatestRelease(repo, token) {
         return { status: listRes.status, release: null, listHint: null };
     }
     if (!listRes.ok) {
-        return { status: listRes.status || latestRes.status, release: null, listHint: null };
+        return {
+            status: listRes.status || latestRes.status,
+            release: null,
+            listHint: listRes.status === 404 ? 'no-access' : null
+        };
     }
     const list = await listRes.json();
     if (!Array.isArray(list) || !list.length) {
@@ -139,6 +143,8 @@ export async function onRequestGet({ request, env }) {
             error = 'La release est encore en brouillon (Draft). Clique Publish release sur GitHub.';
         } else if (listHint === 'empty') {
             error = `Aucune release sur ${repo}. Cree une release avec un .zip.`;
+        } else if (listHint === 'no-access') {
+            error = `GitHub 404 sur ${repo} : le PAT n'a pas acces (coche le repo dans le fine-grained token, Contents: Read) ou le nom du repo est faux.`;
         } else {
             error = `Aucune release lisible sur ${repo} (404). Verifie le nom du repo et que la release est publiee.`;
         }
