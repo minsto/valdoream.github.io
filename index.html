@@ -285,26 +285,23 @@
                 <span id="cart-total-price" style="color: var(--accent-orange);">0,00 €</span>
             </div>
             <p style="color: var(--text-gray); font-size: 0.8rem; margin-top: 12px; line-height: 1.4;">
-                Paiement securise via <b>PayPal</b>. Aucune livraison en jeu avant verification du paiement.
+                Paiement securise <b>Stripe</b> ou <b>PayPal</b>. Livraison en jeu automatique apres paiement reussi.
             </p>
-            <button class="btn-primary" style="width: 100%; margin-top: 10px;" onclick="checkoutCart()">Payer avec PayPal</button>
+            <button class="btn-primary" style="width: 100%; margin-top: 10px;" onclick="checkoutCart('stripe')">Payer avec Stripe</button>
+            <button class="btn-secondary" style="width: 100%; margin-top: 8px;" onclick="checkoutCart('paypal')">Payer avec PayPal</button>
+            <button type="button" style="width: 100%; margin-top: 8px; background:transparent; border:1px solid rgba(255,255,255,0.15); color:var(--text-gray); padding:10px; border-radius:8px; cursor:pointer;" onclick="checkoutCart('paypal_me')">PayPal.me (manuel)</button>
         </div>
     </div>
 
-    <!-- MODAL PAIEMENT PAYPAL -->
+    <!-- MODAL PAIEMENT -->
     <div class="modal-overlay" id="paypal-modal">
         <div class="modal-content">
             <button class="modal-close" onclick="closeModal('paypal-modal')">&times;</button>
-            <h3 style="margin-bottom: 12px;">Paiement securise PayPal</h3>
+            <h3 style="margin-bottom: 12px;">Paiement securise</h3>
             <p id="paypal-order-ref" style="color: var(--accent-orange); font-weight: 700; font-size: 1.1rem; margin-bottom: 10px;"></p>
             <p id="paypal-order-total" style="margin-bottom: 12px;"></p>
-            <ol style="color: var(--text-gray); font-size: 0.9rem; line-height: 1.55; padding-left: 18px; margin-bottom: 16px;">
-                <li>Clique sur le bouton PayPal ci-dessous.</li>
-                <li>Dans le <b>message</b> du paiement, colle ta reference de commande.</li>
-                <li>Paye le montant exact affiche.</li>
-                <li>La livraison en jeu arrive apres verification par le staff (quelques minutes a quelques heures).</li>
-            </ol>
-            <a id="paypal-pay-link" class="btn-primary" href="#" target="_blank" rel="noopener noreferrer" style="display:block; text-align:center; text-decoration:none; width:100%;">Ouvrir PayPal</a>
+            <p id="paypal-order-hint" style="color: var(--text-gray); font-size: 0.9rem; line-height: 1.5; margin-bottom: 16px;"></p>
+            <a id="paypal-pay-link" class="btn-primary" href="#" target="_blank" rel="noopener noreferrer" style="display:block; text-align:center; text-decoration:none; width:100%;">Continuer le paiement</a>
             <button type="button" class="btn-secondary" style="width:100%; margin-top:10px;" onclick="closeModal('paypal-modal')">Fermer</button>
         </div>
     </div>
@@ -457,10 +454,11 @@
             document.getElementById('cart-total-price').innerText = formatPrice(total);
         }
 
-        async function checkoutCart() {
+        async function checkoutCart(method) {
+            method = method || 'stripe';
             if (cart.length === 0) return alert('Votre panier est vide.');
             if (!currentUser) {
-                alert('Connecte-toi avant d acheter (paiement securise PayPal).');
+                alert('Connecte-toi avant d acheter.');
                 openModal('auth-modal');
                 return;
             }
@@ -480,6 +478,7 @@
                     credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
+                        method,
                         items: cart.map(i => ({ id: i.id, name: i.name, price: i.price }))
                     }),
                     cache: 'no-store'
@@ -497,14 +496,20 @@
                 updateCartUI();
                 closeModal('cart-modal');
 
+                if (payload.checkoutUrl && payload.auto) {
+                    location.href = payload.checkoutUrl;
+                    return;
+                }
+
                 document.getElementById('paypal-order-ref').textContent =
                     'Reference : ' + (payload.orderId || '');
                 document.getElementById('paypal-order-total').textContent =
-                    'Montant : ' + formatPrice(payload.total || 0) + ' — pseudo : ' + (payload.player || currentUser.minecraftPseudo);
+                    'Montant : ' + formatPrice(payload.total || 0) + ' — ' + (payload.player || '');
+                document.getElementById('paypal-order-hint').textContent = payload.message || '';
                 const link = document.getElementById('paypal-pay-link');
-                link.href = payload.paypalUrl || 'https://paypal.me/RemyGrandmaison?locale.x=fr_FR&country.x=FR';
+                link.href = payload.checkoutUrl || '#';
                 openModal('paypal-modal');
-                window.open(link.href, '_blank', 'noopener');
+                if (payload.checkoutUrl) window.open(payload.checkoutUrl, '_blank', 'noopener');
             } catch (err) {
                 alert('Erreur reseau : ' + err.message);
             }
@@ -524,6 +529,18 @@
         // --- INITIALISATION ---
         window.addEventListener('DOMContentLoaded', async () => {
             const params = new URLSearchParams(location.search);
+            const shop = params.get('shop');
+            if (shop === 'success') {
+                alert('Paiement recu. Tes articles arrivent sur le serveur Valdoream automatiquement.');
+                history.replaceState({}, '', location.pathname + (params.get('embed') ? '?embed=1' : ''));
+            } else if (shop === 'cancel') {
+                alert('Paiement annule. Aucun debit.');
+                history.replaceState({}, '', location.pathname + (params.get('embed') ? '?embed=1' : ''));
+            } else if (shop === 'error') {
+                alert('Paiement non finalise. Reessaie ou contacte le staff avec ta reference.');
+                history.replaceState({}, '', location.pathname + (params.get('embed') ? '?embed=1' : ''));
+            }
+
             const lt = params.get('lt');
             if (lt) {
                 location.replace('/api/auth/launcher-consume?token=' + encodeURIComponent(lt) + '&next=' + encodeURIComponent('/?embed=1'));
