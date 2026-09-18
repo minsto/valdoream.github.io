@@ -9,7 +9,7 @@
  * Protege par /admin/_middleware.js (Basic Auth).
  */
 
-import { saveUser } from '../../api/auth/_lib.js';
+import { saveUser } from '../../../api/auth/_lib.js';
 
 const CONTENT_KEY = 'content';
 
