@@ -37,6 +37,7 @@
                     <li class="active" onclick="switchAdminTab('dash-overview', this)">&#128202; Vue d'ensemble</li>
                     <li onclick="switchAdminTab('dash-posts', this)">&#128226; Nouveautés & Posts</li>
                     <li onclick="switchAdminTab('dash-players', this)">&#128101; Gestion Joueurs</li>
+                    <li onclick="switchAdminTab('dash-payments', this)">&#128179; Paiements</li>
                     <li onclick="switchAdminTab('dash-shop', this)">&#128722; Ventes & Articles</li>
                     <li onclick="switchAdminTab('dash-server', this)">&#128421;&#65039; Console Serveur</li>
                 </ul>
@@ -111,18 +112,9 @@
                     </table>
                 </div>
 
-                <!-- TAB 4 : ARTICLES -->
-                <div id="dash-shop" class="admin-tab-content" style="display: none;">
-                    <h3 style="margin-bottom: 20px;">Gestion du Catalogue Boutique</h3>
-                    <button class="btn-primary" style="margin-bottom: 20px; background: var(--admin-color);" onclick="openProductModal()">+ Ajouter un article</button>
-                    <table class="admin-table">
-                        <thead>
-                            <tr><th>Catégorie</th><th>Nom de l'article</th><th>Prix</th><th>Actions</th></tr>
-                        </thead>
-                        <tbody id="admin-products-table"></tbody>
-                    </table>
-
-                    <h3 style="margin: 36px 0 12px;">Paiements PayPal en attente</h3>
+                <!-- TAB 4 : PAIEMENTS PAYPAL -->
+                <div id="dash-payments" class="admin-tab-content" style="display: none;">
+                    <h3 style="margin-bottom: 12px;">Paiements PayPal en attente</h3>
                     <p style="color: var(--text-gray); font-size: 0.85rem; margin-bottom: 14px;">
                         Verifie le paiement sur PayPal (reference VD-… dans le message), puis clique <b>Confirmer</b> pour livrer en jeu.
                     </p>
@@ -137,7 +129,19 @@
                     </table>
                 </div>
 
-                <!-- TAB 5 : CONSOLE -->
+                <!-- TAB 5 : ARTICLES -->
+                <div id="dash-shop" class="admin-tab-content" style="display: none;">
+                    <h3 style="margin-bottom: 20px;">Gestion du Catalogue Boutique</h3>
+                    <button class="btn-primary" style="margin-bottom: 20px; background: var(--admin-color);" onclick="openProductModal()">+ Ajouter un article</button>
+                    <table class="admin-table">
+                        <thead>
+                            <tr><th>Catégorie</th><th>Nom de l'article</th><th>Prix</th><th>Actions</th></tr>
+                        </thead>
+                        <tbody id="admin-products-table"></tbody>
+                    </table>
+                </div>
+
+                <!-- TAB 6 : CONSOLE -->
                 <div id="dash-server" class="admin-tab-content" style="display: none;">
                     <div class="console-toolbar">
                         <div>
@@ -339,7 +343,7 @@
             }
 
             if (tabId === 'dash-players') loadRegisteredAccounts();
-            if (tabId === 'dash-shop') loadPendingOrders();
+            if (tabId === 'dash-payments') loadPendingOrders();
         }
 
         // --- VUE D'ENSEMBLE ---
@@ -469,12 +473,58 @@
                         <td><span style="color: ${statusColor}; font-weight: bold;">${esc(statusLabel)}</span></td>
                         <td>${Number(p.purchaseCount || 0)}</td>
                         <td style="white-space:nowrap;">
+                            <button class="action-btn edit" onclick="changePlayerGrade('${esc(p.id)}')">Grade</button>
                             <button class="action-btn edit" onclick="toggleBanAccount('${esc(p.id)}')">${banned ? 'Debannir' : 'Bannir'}</button>
                             <button class="action-btn delete" onclick="deletePlayerAccount('${esc(p.id)}')">Supprimer</button>
                         </td>
                     </tr>
                 `;
             }).join('');
+        }
+
+        function gradeChoices() {
+            const fromShop = (store.shop || [])
+                .filter(p => p.category === 'grades')
+                .map(p => String(p.name || '').replace(/^Grade\s+/i, '').trim())
+                .filter(Boolean);
+            const base = ['Joueur', 'VIP', 'Épique', 'Légende', 'Admin', 'Modo'];
+            return [...new Set([...base, ...fromShop])];
+        }
+
+        async function changePlayerGrade(userId) {
+            const p = registeredAccounts.find(x => x.id === userId);
+            if (!p) return;
+            const choices = gradeChoices();
+            const current = p.grade || 'Joueur';
+            const list = choices.map((g, i) => (i + 1) + '. ' + g + (g === current ? ' (actuel)' : '')).join('\n');
+            const answer = prompt(
+                'Nouveau grade pour ' + (p.minecraftPseudo || p.name || p.id) + ' :\n\n' +
+                list + '\n\nEntre le nom du grade (ex: VIP) :',
+                current
+            );
+            if (answer == null) return;
+            const grade = String(answer).trim();
+            if (!grade) {
+                alert('Grade vide.');
+                return;
+            }
+            try {
+                const res = await fetch('/admin/api/players/accounts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId, grade }),
+                    cache: 'no-store'
+                });
+                const data = await res.json();
+                if (!res.ok || !data.ok) {
+                    alert(data.error || 'Echec du changement de grade');
+                    return;
+                }
+                addConsoleLog(`[MODERATION]: grade ${esc(p.minecraftPseudo || p.name || p.id)} &#8594; ${esc(grade)}`);
+                await loadRegisteredAccounts();
+            } catch (err) {
+                alert(err.message);
+            }
         }
 
         async function toggleBanAccount(userId) {
