@@ -10,7 +10,7 @@ function githubToken(env) {
 }
 
 function updateRepo(env) {
-    return envGet(env, 'LAUNCHER_UPDATE_REPO') || 'minsto/ValdoreamLuncher-update';
+    return envGet(env, 'LAUNCHER_UPDATE_REPO') || 'minsto/ValdoreamLauncher-update';
 }
 
 export async function onRequestGet({ request, env }) {

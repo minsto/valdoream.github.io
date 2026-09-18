@@ -6,7 +6,7 @@
  *
  * Cloudflare Pages → Settings → Environment variables :
  *   GITHUB_TOKEN            = PAT fine-grained (Contents: Read) sur le repo update
- *   LAUNCHER_UPDATE_REPO     = minsto/ValdoreamLuncher-update  (optionnel)
+ *   LAUNCHER_UPDATE_REPO     = minsto/ValdoreamLauncher-update  (optionnel)
  */
 
 import { envGet, json, siteUrl } from '../auth/_lib.js';
@@ -44,7 +44,7 @@ function githubToken(env) {
 }
 
 function updateRepo(env) {
-    return envGet(env, 'LAUNCHER_UPDATE_REPO') || 'minsto/ValdoreamLuncher-update';
+    return envGet(env, 'LAUNCHER_UPDATE_REPO') || 'minsto/ValdoreamLauncher-update';
 }
 
 export async function onRequestGet({ request, env }) {
