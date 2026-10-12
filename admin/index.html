@@ -36,6 +36,7 @@
                 <ul class="admin-menu">
                     <li class="active" onclick="switchAdminTab('dash-overview', this)">&#128202; Vue d'ensemble</li>
                     <li onclick="switchAdminTab('dash-posts', this)">&#128226; Nouveautés & Posts</li>
+                    <li onclick="switchAdminTab('dash-team', this)">&#128081; Équipe</li>
                     <li onclick="switchAdminTab('dash-players', this)">&#128101; Gestion Joueurs</li>
                     <li onclick="switchAdminTab('dash-payments', this)">&#128179; Paiements</li>
                     <li onclick="switchAdminTab('dash-shop', this)">&#128722; Ventes & Articles</li>
@@ -86,6 +87,39 @@
                             <tr><th>Type</th><th>Titre</th><th>Auteur / Date</th><th>Actions</th></tr>
                         </thead>
                         <tbody id="admin-posts-table"></tbody>
+                    </table>
+                </div>
+
+                <!-- TAB ÉQUIPE -->
+                <div id="dash-team" class="admin-tab-content" style="display: none;">
+                    <h3 style="margin-bottom: 8px;">Équipe</h3>
+                    <p style="color: var(--text-gray); font-size: 0.85rem; margin-bottom: 18px;">
+                        Choisis une catégorie, puis ajoute ou modifie les noms. Chaque changement est enregistré sur Cloudflare, comme le reste du site.
+                    </p>
+                    <div class="team-toolbar">
+                        <div class="form-group">
+                            <label>Catégorie</label>
+                            <select id="team-category" onchange="renderTeamAdmin()"></select>
+                        </div>
+                        <button type="button" class="btn-primary" style="background: var(--admin-color);" onclick="openTeamCategoryModal()">+ Nouvelle catégorie</button>
+                        <button type="button" class="btn-secondary" style="border-color: #e74c3c; color: #e74c3c;" onclick="deleteTeamCategory()">Supprimer cette catégorie</button>
+                    </div>
+                    <div class="team-toolbar">
+                        <div class="form-group">
+                            <label>Nom de la catégorie</label>
+                            <input type="text" id="team-cat-rename" placeholder="Ex: L'Équipe du Studio" onchange="renameTeamCategory()">
+                        </div>
+                        <div class="form-group">
+                            <label>Sous-titre sur le site</label>
+                            <input type="text" id="team-subtitle" placeholder="Phrase sous le titre" onchange="saveTeamSubtitle()">
+                        </div>
+                    </div>
+                    <button type="button" class="btn-primary" style="margin-bottom: 20px; background: var(--admin-color);" onclick="openTeamMemberModal()">+ Ajouter un nom</button>
+                    <table class="admin-table">
+                        <thead>
+                            <tr><th>Icône</th><th>Nom</th><th>Classe</th><th>Actions</th></tr>
+                        </thead>
+                        <tbody id="admin-team-table"></tbody>
                     </table>
                 </div>
 
@@ -197,6 +231,70 @@
         </div>
     </div>
 
+    <!-- MODAL CATÉGORIE ÉQUIPE -->
+    <div class="modal-overlay" id="team-category-modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal('team-category-modal')">&times;</button>
+            <h3 style="margin-bottom: 20px;">Nouvelle catégorie</h3>
+            <form onsubmit="saveTeamCategory(event)">
+                <div class="form-group">
+                    <label>Nom de la catégorie</label>
+                    <input type="text" id="team-cat-name" required placeholder="Ex: Modération">
+                </div>
+                <div class="form-group">
+                    <label>Sous-titre</label>
+                    <input type="text" id="team-cat-subtitle" placeholder="Phrase affichée sous le titre">
+                </div>
+                <button type="submit" class="btn-primary" style="background: var(--admin-color); width: 100%;">Créer la catégorie</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL MEMBRE ÉQUIPE -->
+    <div class="modal-overlay" id="team-member-modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal('team-member-modal')">&times;</button>
+            <h3 id="team-member-title" style="margin-bottom: 20px;">Ajouter un nom</h3>
+            <form onsubmit="saveTeamMember(event)">
+                <div class="form-group">
+                    <label>Nom du joueur</label>
+                    <input type="text" id="team-member-name" required placeholder="Ex: Alexandre">
+                </div>
+                <div class="form-group">
+                    <label>Classe</label>
+                    <input type="text" id="team-member-role" required placeholder="Ex: Fondateur & Lead Dev">
+                </div>
+                <div class="form-group">
+                    <label>Couleur de la classe</label>
+                    <input type="color" id="team-member-color" value="#ff6a00">
+                </div>
+                <div class="form-group">
+                    <label>Icône (emoji ou lien d'image)</label>
+                    <input type="text" id="team-member-icon" required placeholder="👑 ou https://...">
+                    <div class="icon-picker">
+                        <button type="button" onclick="pickTeamIcon('👑')">👑</button>
+                        <button type="button" onclick="pickTeamIcon('🎨')">🎨</button>
+                        <button type="button" onclick="pickTeamIcon('🏰')">🏰</button>
+                        <button type="button" onclick="pickTeamIcon('⚙️')">⚙️</button>
+                        <button type="button" onclick="pickTeamIcon('💻')">💻</button>
+                        <button type="button" onclick="pickTeamIcon('🛡️')">🛡️</button>
+                        <button type="button" onclick="pickTeamIcon('⚔️')">⚔️</button>
+                        <button type="button" onclick="pickTeamIcon('✨')">✨</button>
+                        <button type="button" onclick="pickTeamIcon('👤')">👤</button>
+                        <button type="button" onclick="pickTeamIcon('🔥')">🔥</button>
+                        <button type="button" onclick="pickTeamIcon('💎')">💎</button>
+                        <button type="button" onclick="pickTeamIcon('🐺')">🐺</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Description (facultatif)</label>
+                    <input type="text" id="team-member-desc" placeholder="Courte phrase sous la classe">
+                </div>
+                <button type="submit" class="btn-primary" style="background: var(--admin-color); width: 100%;">Enregistrer</button>
+            </form>
+        </div>
+    </div>
+
     <!-- MODAL AJOUT POST -->
     <div class="modal-overlay" id="add-post-modal">
         <div class="modal-content">
@@ -270,7 +368,7 @@
         </div>
     </div>
 
-    <script src="../assets/data.js"></script>
+    <script src="../assets/data.js?v=2"></script>
     <script>
         const store = loadStore();
 
@@ -316,6 +414,7 @@
             renderPostsTable();
             renderPlayersTable();
             renderProductsTable();
+            renderTeamAdmin();
             updateQueueBadge();
         }
 
@@ -410,6 +509,181 @@
 
         function deleteNews(id) { store.news = store.news.filter(x => x.id !== id); persist(); renderPostsTable(); }
         function deletePost(id) { store.posts = store.posts.filter(x => x.id !== id); persist(); renderPostsTable(); }
+
+        let selectedTeamId = null;
+        let editingMemberId = null;
+
+        function ensureTeamStore() {
+            if (!Array.isArray(store.team)) store.team = [];
+            store.team.forEach(category => {
+                if (!Array.isArray(category.members)) category.members = [];
+            });
+        }
+
+        function currentTeamCategory() {
+            ensureTeamStore();
+            return store.team.find(category => category.id === selectedTeamId) || store.team[0] || null;
+        }
+
+        function renderTeamAdmin(preferId) {
+            ensureTeamStore();
+            const select = document.getElementById('team-category');
+            const table = document.getElementById('admin-team-table');
+            const rename = document.getElementById('team-cat-rename');
+            const subtitle = document.getElementById('team-subtitle');
+            if (!select || !table) return;
+
+            const requested = Number(preferId || select.value) || selectedTeamId;
+            select.innerHTML = store.team.map(category =>
+                `<option value="${category.id}">${esc(category.name)}</option>`
+            ).join('');
+
+            if (!store.team.length) {
+                select.innerHTML = '<option value="">Aucune catégorie</option>';
+                if (rename) rename.value = '';
+                if (subtitle) subtitle.value = '';
+                table.innerHTML = '<tr><td colspan="4" style="color:#888;">Ajoute une catégorie pour y placer des noms.</td></tr>';
+                selectedTeamId = null;
+                return;
+            }
+
+            const current = store.team.some(category => category.id === requested) ? requested : store.team[0].id;
+            selectedTeamId = current;
+            select.value = String(current);
+            const category = store.team.find(item => item.id === current);
+            if (rename) rename.value = category.name || '';
+            if (subtitle) subtitle.value = category.subtitle || '';
+
+            if (!category.members.length) {
+                table.innerHTML = '<tr><td colspan="4" style="color:#888;">Aucun nom dans cette catégorie.</td></tr>';
+                return;
+            }
+
+            table.innerHTML = category.members.map(member => `
+                <tr>
+                    <td class="team-icon-cell">${teamIconMarkup(member.icon)}</td>
+                    <td><b>${esc(member.name)}</b></td>
+                    <td style="color:${safeCssColor(member.color)}; font-weight:bold;">${esc(member.role)}</td>
+                    <td style="white-space:nowrap;">
+                        <button type="button" class="action-btn edit" onclick="openTeamMemberModal(${member.id})">Modifier</button>
+                        <button type="button" class="action-btn delete" onclick="deleteTeamMember(${member.id})">Supprimer</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function openTeamCategoryModal() {
+            const form = document.querySelector('#team-category-modal form');
+            if (form) form.reset();
+            openModal('team-category-modal');
+        }
+
+        function saveTeamCategory(event) {
+            event.preventDefault();
+            ensureTeamStore();
+            const name = document.getElementById('team-cat-name').value.trim();
+            if (!name) return;
+            const category = {
+                id: Date.now(),
+                name,
+                subtitle: document.getElementById('team-cat-subtitle').value.trim(),
+                members: []
+            };
+            store.team.push(category);
+            selectedTeamId = category.id;
+            persist();
+            event.target.reset();
+            closeModal('team-category-modal');
+            renderTeamAdmin(category.id);
+        }
+
+        function renameTeamCategory() {
+            const category = currentTeamCategory();
+            const input = document.getElementById('team-cat-rename');
+            if (!category || !input) return;
+            const name = input.value.trim();
+            if (!name) {
+                renderTeamAdmin();
+                return;
+            }
+            category.name = name;
+            persist();
+            renderTeamAdmin();
+        }
+
+        function saveTeamSubtitle() {
+            const category = currentTeamCategory();
+            const input = document.getElementById('team-subtitle');
+            if (!category || !input) return;
+            category.subtitle = input.value.trim();
+            persist();
+        }
+
+        function deleteTeamCategory() {
+            const category = currentTeamCategory();
+            if (!category) return;
+            if (!confirm('Supprimer la catégorie « ' + category.name + ' » et tous les noms qu\'elle contient ?')) return;
+            store.team = store.team.filter(item => item.id !== category.id);
+            selectedTeamId = store.team[0] ? store.team[0].id : null;
+            persist();
+            renderTeamAdmin();
+        }
+
+        function pickTeamIcon(icon) {
+            const input = document.getElementById('team-member-icon');
+            if (input) input.value = icon;
+        }
+
+        function openTeamMemberModal(memberId) {
+            const category = currentTeamCategory();
+            if (!category) {
+                alert('Crée d\'abord une catégorie.');
+                return;
+            }
+            const member = memberId ? category.members.find(item => item.id === memberId) : null;
+            editingMemberId = member ? member.id : null;
+            document.getElementById('team-member-title').textContent = member ? 'Modifier le nom' : 'Ajouter un nom';
+            document.getElementById('team-member-name').value = member ? member.name : '';
+            document.getElementById('team-member-role').value = member ? member.role : '';
+            document.getElementById('team-member-icon').value = member && member.icon ? member.icon : '👤';
+            document.getElementById('team-member-color').value = safeCssColor(member && member.color);
+            document.getElementById('team-member-desc').value = member && member.desc ? member.desc : '';
+            openModal('team-member-modal');
+        }
+
+        function saveTeamMember(event) {
+            event.preventDefault();
+            const category = currentTeamCategory();
+            if (!category) return;
+            const icon = String(document.getElementById('team-member-icon').value || '').trim().slice(0, 300) || '👤';
+            const member = {
+                id: editingMemberId || Date.now(),
+                name: document.getElementById('team-member-name').value.trim(),
+                role: document.getElementById('team-member-role').value.trim(),
+                icon,
+                color: safeCssColor(document.getElementById('team-member-color').value),
+                desc: document.getElementById('team-member-desc').value.trim()
+            };
+            if (!member.name || !member.role) return;
+            const index = category.members.findIndex(item => item.id === member.id);
+            if (index >= 0) category.members[index] = member;
+            else category.members.push(member);
+            editingMemberId = null;
+            persist();
+            closeModal('team-member-modal');
+            renderTeamAdmin();
+        }
+
+        function deleteTeamMember(memberId) {
+            const category = currentTeamCategory();
+            if (!category) return;
+            const member = category.members.find(item => item.id === memberId);
+            if (!member) return;
+            if (!confirm('Retirer « ' + member.name + ' » de la catégorie « ' + category.name + ' » ?')) return;
+            category.members = category.members.filter(item => item.id !== memberId);
+            persist();
+            renderTeamAdmin();
+        }
 
         let registeredAccounts = [];
 

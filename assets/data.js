@@ -52,7 +52,20 @@ const DEFAULT_DATA = {
         '[INFO]: Chargement du monde Survie RPG effectué.',
         '[Boutique]: Transaction #1042 enregistrée avec succès.'
     ],
-    queue: []
+    queue: [],
+    team: [
+        {
+            id: 1,
+            name: "L'Équipe du Studio",
+            subtitle: 'Les esprits créatifs derrière Valdoream.',
+            members: [
+                { id: 1, name: 'Alexandre', role: 'Fondateur & Lead Dev', icon: '👑', color: '#ff2a4b', desc: 'Architecture serveur et systèmes RPG.' },
+                { id: 2, name: 'Elena', role: 'Lead Artist & 3D', icon: '🎨', color: '#ff6a00', desc: 'Modèles de boss et textures des armures.' },
+                { id: 3, name: 'Maxime', role: 'Head Level Designer', icon: '🏰', color: '#2bcf5e', desc: 'Conception des donjons et du monde.' },
+                { id: 4, name: 'Lucas', role: 'Ingénieur DevOps', icon: '⚙️', color: '#9d2bcf', desc: "Gestion de l'infrastructure et de la boutique." }
+            ]
+        }
+    ]
 };
 
 // Complète un contenu partiel avec les valeurs par défaut, pour qu'une clé
@@ -60,7 +73,27 @@ const DEFAULT_DATA = {
 function withDefaults(content) {
     const merged = Object.assign(structuredClone(DEFAULT_DATA), content || {});
     if (!Array.isArray(merged.queue)) merged.queue = [];
+    if (!Array.isArray(merged.team)) merged.team = structuredClone(DEFAULT_DATA.team);
+    merged.team.forEach(category => {
+        if (!category || typeof category !== 'object') return;
+        if (!Array.isArray(category.members)) category.members = [];
+    });
+    merged.team = merged.team.filter(category => category && typeof category === 'object');
     return merged;
+}
+
+function safeCssColor(value) {
+    return /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(String(value || ''))
+        ? String(value)
+        : '#ff6a00';
+}
+
+function teamIconMarkup(icon) {
+    const value = String(icon || '👤').trim();
+    if (/^https?:\/\/\S+$/i.test(value)) {
+        return `<img src="${esc(value)}" alt="">`;
+    }
+    return esc(value.slice(0, 16));
 }
 
 // Contenu disponible immédiatement, sans attendre le réseau.

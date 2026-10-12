@@ -162,35 +162,7 @@
             </div>
         </div>
 
-        <h3 style="text-align: center; font-size: 2rem; margin-top: 60px; margin-bottom: 10px;">L'Équipe du Studio</h3>
-        <p style="text-align: center; color: var(--text-gray); margin-bottom: 30px;">Les esprits créatifs derrière Valdoream.</p>
-
-        <div class="team-grid">
-            <div class="team-member">
-                <div class="team-avatar">&#128081;</div>
-                <h4>Alexandre</h4>
-                <p style="color: var(--primary-red); font-size: 0.85rem; font-weight: bold;">Fondateur & Lead Dev</p>
-                <p style="color: var(--text-gray); font-size: 0.8rem; margin-top: 8px;">Architecture serveur et systèmes RPG.</p>
-            </div>
-            <div class="team-member">
-                <div class="team-avatar">&#127912;</div>
-                <h4>Elena</h4>
-                <p style="color: var(--accent-orange); font-size: 0.85rem; font-weight: bold;">Lead Artist & 3D</p>
-                <p style="color: var(--text-gray); font-size: 0.8rem; margin-top: 8px;">Modèles de boss et textures des armures.</p>
-            </div>
-            <div class="team-member">
-                <div class="team-avatar">&#127984;</div>
-                <h4>Maxime</h4>
-                <p style="color: var(--mc-color); font-size: 0.85rem; font-weight: bold;">Head Level Designer</p>
-                <p style="color: var(--text-gray); font-size: 0.8rem; margin-top: 8px;">Conception des donjons et du monde.</p>
-            </div>
-            <div class="team-member">
-                <div class="team-avatar">&#9881;&#65039;</div>
-                <h4>Lucas</h4>
-                <p style="color: var(--admin-color); font-size: 0.85rem; font-weight: bold;">Ingénieur DevOps</p>
-                <p style="color: var(--text-gray); font-size: 0.8rem; margin-top: 8px;">Gestion de l'infrastructure et de la boutique.</p>
-            </div>
-        </div>
+        <div id="public-team"></div>
     </div>
 
     <!-- PAGE 4 : STATUT -->
@@ -310,7 +282,7 @@
         </div>
     </div>
 
-    <script src="assets/data.js"></script>
+    <script src="assets/data.js?v=2"></script>
     <script>
         const store = loadStore();
         let cart = [];
@@ -381,6 +353,8 @@
                 </div>
             `).join('');
 
+            renderPublicTeam();
+
             document.getElementById('public-posts-grid').innerHTML = store.posts.map(post => `
                 <div class="post-card">
                     <div>
@@ -396,6 +370,28 @@
                     <span class="post-tag">${esc(post.tag)}</span>
                 </div>
             `).join('');
+        }
+
+        function renderPublicTeam() {
+            const root = document.getElementById('public-team');
+            if (!root) return;
+            const groups = Array.isArray(store.team) ? store.team : [];
+            root.innerHTML = groups.map((group, index) => {
+                const members = Array.isArray(group.members) ? group.members : [];
+                const cards = members.map(member => `
+                    <div class="team-member">
+                        <div class="team-avatar">${teamIconMarkup(member.icon)}</div>
+                        <h4>${esc(member.name)}</h4>
+                        <p style="color: ${safeCssColor(member.color)}; font-size: 0.85rem; font-weight: bold;">${esc(member.role)}</p>
+                        ${member.desc ? `<p style="color: var(--text-gray); font-size: 0.8rem; margin-top: 8px;">${esc(member.desc)}</p>` : ''}
+                    </div>
+                `).join('');
+                return `
+                    <h3 style="text-align: center; font-size: 2rem; margin-top: ${index === 0 ? 60 : 50}px; margin-bottom: 10px;">${esc(group.name)}</h3>
+                    ${group.subtitle ? `<p style="text-align: center; color: var(--text-gray); margin-bottom: 30px;">${esc(group.subtitle)}</p>` : ''}
+                    <div class="team-grid">${cards}</div>
+                `;
+            }).join('');
         }
 
         // --- RENDU BOUTIQUE PUBLIQUE ---
