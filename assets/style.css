@@ -250,8 +250,72 @@ h1, h2, h3, h4 { font-family: var(--font-heading); font-weight: 900; text-transf
 .remove-btn { background: none; border: none; color: var(--primary-red); cursor: pointer; font-weight: bold; }
 .cart-total { margin: 20px 0; font-size: 1.2rem; font-weight: bold; display: flex; justify-content: space-between; }
 
+@media (max-width: 1100px) {
+    .navbar { flex-wrap: wrap; row-gap: 8px; }
+    .nav-links { flex-wrap: wrap; gap: 10px 14px; }
+    .hero { padding-top: 230px; align-items: flex-start; }
+}
+
 @media (max-width: 900px) {
     .features-grid, .news-grid, .posts-grid, .server-presentation, .status-stats, .grades-grid, .classes-grid, .items-grid, .studio-grid, .team-grid { grid-template-columns: 1fr; }
     .admin-grid { grid-template-columns: 1fr; }
     .dashboard-cards { grid-template-columns: 1fr; }
+    .hero h1 { font-size: 2.3rem; }
+    .hero p { font-size: 1rem; }
+    .hero-content { width: min(850px, calc(100% - 24px)); padding: 28px 18px; }
+}
+
+/* Page licence */
+.license-wrap { max-width: 980px; margin: 0 auto; padding: calc(var(--nav-offset, 74px) + 36px) 5% 80px; }
+.license-wrap .section-header h1 { font-size: 2.8rem; margin-bottom: 15px; }
+.license-noscript { background: rgba(255, 106, 0, 0.08); border: 1px solid var(--border-color); padding: 12px 16px; border-radius: 8px; color: var(--text-gray); margin-bottom: 16px; }
+.license-bar {
+    position: sticky; top: calc(var(--nav-offset, 74px) + 8px); z-index: 20; display: flex; justify-content: space-between; gap: 12px;
+    flex-wrap: wrap; align-items: center; padding: 12px; margin-bottom: 24px;
+    background: rgba(17, 17, 21, 0.94); border: 1px solid var(--border-color); border-radius: 12px; backdrop-filter: blur(10px);
+}
+.license-tabs, .license-langs { display: flex; gap: 8px; flex-wrap: wrap; }
+.license-tabs button, .license-langs button {
+    background: var(--bg-dark-2); border: 1px solid rgba(255,255,255,0.12); color: var(--text-gray);
+    padding: 8px 14px; border-radius: 20px; font-weight: 700; cursor: pointer; font-family: var(--font-body); font-size: 0.9rem;
+}
+.license-tabs button.active, .license-langs button.active, .license-tabs button:hover, .license-langs button:hover {
+    background: var(--gradient-brand); color: white; border-color: transparent;
+}
+#license-docs { scroll-margin-top: 160px; }
+.license-doc {
+    background: var(--bg-dark-1); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px;
+    padding: 36px 40px 48px; overflow-wrap: break-word;
+}
+.license-doc[hidden] { display: none !important; }
+.license-doc .license-title {
+    text-transform: none; letter-spacing: 0; font-size: 1.35rem; font-weight: 800;
+    line-height: 1.35; margin-bottom: 1.2rem;
+}
+.license-doc h3, .license-doc h4 { text-transform: none; letter-spacing: 0; font-weight: 800; line-height: 1.35; }
+.license-doc h3 { font-size: 1.12rem; margin: 2rem 0 0.75rem; color: #fff; }
+.license-doc h4 { font-size: 1rem; margin: 1.35rem 0 0.55rem; color: var(--accent-orange); }
+.license-doc p, .license-doc li { color: #d5d5dc; font-size: 0.98rem; line-height: 1.75; }
+.license-doc p { margin: 0 0 0.95rem; }
+.license-doc .license-meta { color: var(--text-gray); font-size: 0.92rem; margin-bottom: 0.35rem; }
+.license-doc .license-meta + :not(.license-meta) { margin-top: 1.25rem; }
+.license-doc .license-list { margin: 0.3rem 0 1.1rem 1.25rem; padding: 0; list-style: disc; }
+.license-doc .license-list li { margin: 0.35rem 0; padding-left: 0.25rem; }
+.license-doc .license-list li::marker { color: var(--accent-orange); }
+.license-doc .license-end { margin-top: 1.6rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.08); color: var(--text-gray); }
+.license-doc a { color: var(--accent-orange); text-underline-offset: 3px; overflow-wrap: anywhere; }
+.license-doc a:hover { color: #fff; }
+.license-footer-note { color: var(--text-gray); font-size: 0.85rem; }
+@media (max-width: 800px) {
+    .license-bar { position: static; }
+    .license-doc { padding: 22px 18px 32px; }
+    .license-wrap .section-header h1 { font-size: 2rem; }
+}
+@media print {
+    .navbar, .license-bar, footer, .license-noscript { display: none !important; }
+    body { background: #fff; color: #111; }
+    .license-wrap { padding: 0; max-width: none; }
+    .license-doc { background: #fff; border: none; color: #111; }
+    .license-doc h2, .license-doc h3, .license-doc h4, .license-doc p, .license-doc li { color: #111; }
+    .license-doc a { color: #111; }
 }
